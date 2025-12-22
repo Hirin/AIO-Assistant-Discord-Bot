@@ -5,9 +5,9 @@
 set -e
 
 # Config
-HOST="Hirin@YOUR_SERVER_IP"
+HOST="ubuntu@YOUR_SERVER_IP"
 KEY="~/.ssh/aws-key.pem"
-REMOTE_DIR="/home/Hirin/discord-bot"
+REMOTE_DIR="/home/ubuntu/discord-bot"
 
 echo "📦 Syncing code to AWS..."
 rsync -avz --exclude '.git' --exclude '.venv' --exclude 'data' --exclude '__pycache__' \
@@ -16,7 +16,7 @@ rsync -avz --exclude '.git' --exclude '.venv' --exclude 'data' --exclude '__pyca
 
 echo "🚀 Setting up on remote..."
 ssh -i $KEY $HOST << 'ENDSSH'
-cd /home/Hirin/discord-bot
+cd /home/ubuntu/discord-bot
 
 # Install uv if not exists
 if ! command -v uv &> /dev/null; then
@@ -43,12 +43,12 @@ After=network.target
 
 [Service]
 Type=simple
-User=Hirin
-WorkingDirectory=/home/Hirin/discord-bot
-ExecStart=/home/Hirin/.local/bin/uv run python src/main.py
+User=ubuntu
+WorkingDirectory=/home/ubuntu/discord-bot
+ExecStart=/home/ubuntu/.local/bin/uv run python src/main.py
 Restart=always
 RestartSec=10
-EnvironmentFile=/home/Hirin/discord-bot/.env
+EnvironmentFile=/home/ubuntu/discord-bot/.env
 
 [Install]
 WantedBy=multi-user.target

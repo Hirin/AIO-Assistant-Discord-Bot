@@ -50,19 +50,12 @@ async def summarize_transcript(
     model = os.getenv("GLM_MODEL", "glm-4.6")
     client = get_client(guild_id)
 
-    system_prompt = """Bạn là trợ lý tóm tắt cuộc họp chuyên nghiệp. 
-Hãy tóm tắt cuộc họp theo cấu trúc:
-## 📋 Tóm tắt tổng quan
-(2-3 câu về nội dung chính)
-## 🎯 Các điểm chính
-- Điểm 1
-- Điểm 2
-...
-## ✅ Quyết định & Action Items
-- [Người] - Việc cần làm
-## 📌 Ghi chú quan trọng
-(Nếu có)
-Hãy tóm tắt ngắn gọn, súc tích, bằng tiếng Việt."""
+    # Get custom prompt or default
+    system_prompt = (
+        config_service.get_custom_prompt(guild_id)
+        if guild_id
+        else config_service.DEFAULT_PROMPT
+    )
 
     for attempt in range(retries):
         try:

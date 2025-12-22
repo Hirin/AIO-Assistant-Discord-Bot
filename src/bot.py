@@ -34,6 +34,7 @@ class DiscordBot(commands.Bot):
         # Sync commands
         if self.guild_id:
             guild = discord.Object(id=int(self.guild_id))
+            # Copy to guild for instant sync
             self.tree.copy_global_to(guild=guild)
             await self.tree.sync(guild=guild)
             logger.info(f"Commands synced to guild {self.guild_id}")

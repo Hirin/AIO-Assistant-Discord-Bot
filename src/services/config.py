@@ -84,3 +84,24 @@ def mask_key(key: str) -> str:
     if not key or len(key) < 8:
         return "***"
     return f"{key[:4]}...{key[-4:]}"
+
+
+DEFAULT_PROMPT = """Bạn là trợ lý tóm tắt cuộc họp chuyên nghiệp. 
+Hãy tóm tắt cuộc họp theo cấu trúc:
+## 📋 Tóm tắt tổng quan
+(2-3 câu về nội dung chính)
+## 🎯 Các điểm chính
+- Điểm 1
+- Điểm 2
+...
+## ✅ Quyết định & Action Items
+- [Người] - Việc cần làm
+## 📌 Ghi chú quan trọng
+(Nếu có)
+Hãy tóm tắt ngắn gọn, súc tích, bằng tiếng Việt."""
+
+
+def get_custom_prompt(guild_id: int) -> str:
+    """Get custom prompt for a guild, fallback to default"""
+    config = get_guild_config(guild_id)
+    return config.get("custom_prompt") or DEFAULT_PROMPT
