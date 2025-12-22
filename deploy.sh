@@ -4,10 +4,10 @@
 
 set -e
 
-# Config
-HOST="ubuntu@YOUR_SERVER_IP"
-KEY="~/.ssh/aws-key.pem"
-REMOTE_DIR="/home/ubuntu/discord-bot"
+# Config (set these in your shell or .bashrc)
+HOST="${AWS_HOST:-ubuntu@YOUR_SERVER_IP}"
+KEY="${AWS_KEY:-~/.ssh/aws-key.pem}"
+REMOTE_DIR="${AWS_REMOTE_DIR:-/home/ubuntu/discord-bot}"
 
 echo "📦 Syncing code to AWS..."
 rsync -avz --exclude '.git' --exclude '.venv' --exclude 'data' --exclude '__pycache__' \
