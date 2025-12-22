@@ -10,25 +10,37 @@ from typing import Optional
 
 from openai import OpenAI
 
+from services import config as config_service
+
 logger = logging.getLogger(__name__)
 
 
-def get_client() -> OpenAI:
+def get_client(guild_id: Optional[int] = None) -> OpenAI:
     """Get configured OpenAI client for GLM API"""
+    # Try guild-specific key first, then fallback to env
+    if guild_id:
+        api_key = config_service.get_api_key(guild_id, "glm")
+    else:
+        api_key = os.getenv("GLM_API_KEY")
+
     return OpenAI(
-        api_key=os.getenv("GLM_API_KEY"),
+        api_key=api_key,
         base_url=os.getenv("GLM_BASE_URL", "https://api.z.ai/api/paas/v4/"),
     )
 
 
 async def summarize_transcript(
-    transcript: str, timeout: int = 60, retries: int = 3
+    transcript: str,
+    guild_id: Optional[int] = None,
+    timeout: int = 60,
+    retries: int = 3,
 ) -> Optional[str]:
     """
     Summarize a meeting transcript using GLM API.
 
     Args:
         transcript: Full transcript text
+        guild_id: Guild ID for guild-specific API key
         timeout: Timeout in seconds
         retries: Number of retry attempts
 
@@ -36,25 +48,20 @@ async def summarize_transcript(
         Summary text or None if failed
     """
     model = os.getenv("GLM_MODEL", "glm-4.6")
-    client = get_client()
+    client = get_client(guild_id)
 
     system_prompt = """Bạn là trợ lý tóm tắt cuộc họp chuyên nghiệp. 
 Hãy tóm tắt cuộc họp theo cấu trúc:
-
 ## 📋 Tóm tắt tổng quan
 (2-3 câu về nội dung chính)
-
 ## 🎯 Các điểm chính
 - Điểm 1
 - Điểm 2
 ...
-
 ## ✅ Quyết định & Action Items
 - [Người] - Việc cần làm
-
 ## 📌 Ghi chú quan trọng
 (Nếu có)
-
 Hãy tóm tắt ngắn gọn, súc tích, bằng tiếng Việt."""
 
     for attempt in range(retries):
@@ -94,21 +101,4 @@ Hãy tóm tắt ngắn gọn, súc tích, bằng tiếng Việt."""
 
 def get_fallback_template() -> str:
     """Return fallback template when LLM fails"""
-    return """⚠️ **Không thể tạo tóm tắt tự động**
-
-Vui lòng điền thủ công:
-
-## 📋 Tóm tắt tổng quan
-- Cuộc họp về: ___
-- Thời gian: ___
-
-## 🎯 Các điểm chính
-- [ ] ___
-- [ ] ___
-
-## ✅ Action Items
-- [ ] Người: ___ | Việc: ___
-
-## 📌 Ghi chú
-- ___
-"""
+    return """⚠️ **Lỗi gọi API LLM**"""

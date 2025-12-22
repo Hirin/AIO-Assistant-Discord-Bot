@@ -16,3 +16,9 @@ env/
 # Temp
 *.log
 /tmp/
+
+# Guild config (contains API keys)
+data/
+
+# Local scripts (not needed in production)
+scripts/
