@@ -43,9 +43,43 @@ class LectureSourceView(discord.ui.View):
         modal = MeetingIdModal(self.guild_id, mode="lecture")
         await interaction.response.send_modal(modal)
     
+    @discord.ui.button(label="📄 Preview Slides", style=discord.ButtonStyle.secondary)
+    async def preview_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Preview slides/documents before class"""
+        from cogs.preview.views import PreviewSourceView
+        
+        # Create embed with instructions
+        embed = discord.Embed(
+            title="📄 Preview Tài Liệu",
+            description=(
+                "Chuẩn bị trước buổi học bằng cách tổng hợp NỘI DUNG CHÍNH từ slides/tài liệu.\n\n"
+                "**Chọn cách upload tài liệu:**"
+            ),
+            color=discord.Color.blue(),
+        )
+        embed.add_field(
+            name="📤 Upload PDF",
+            value="Upload 1-5 file PDF trực tiếp qua Discord",
+            inline=True
+        )
+        embed.add_field(
+            name="🔗 Google Drive",
+            value="Paste link Google Drive (1 hoặc nhiều file)",
+            inline=True
+        )
+        embed.set_footer(text="Có thể upload tối đa 5 tài liệu")
+        
+        view = PreviewSourceView(
+            guild_id=self.guild_id,
+            user_id=self.user_id,
+        )
+        
+        await interaction.response.edit_message(embed=embed, view=view)
+    
     @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.danger)
     async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(content="✅ Đã đóng", embed=None, view=None)
+
 
 
 class VideoInputModal(discord.ui.Modal, title="Video Lecture Summary"):
@@ -85,8 +119,10 @@ class VideoInputModal(discord.ui.Modal, title="Video Lecture Summary"):
         
         await interaction.response.defer(ephemeral=True)
         
-        # Prompt for slides (optional)
-        slides_url = await prompt_for_slides(interaction, interaction.client, self.user_id)
+        # Prompt for slides (optional) - returns (url, source, original_path)
+        slides_url, slides_source, slides_original_path = await prompt_for_slides(
+            interaction, interaction.client, self.user_id
+        )
         
         # Hide the source selection view
         try:
@@ -103,6 +139,8 @@ class VideoInputModal(discord.ui.Modal, title="Video Lecture Summary"):
             youtube_url=url,
             title=title,
             slides_url=slides_url,
+            slides_source=slides_source,
+            slides_original_path=slides_original_path,
             guild_id=self.guild_id,
             user_id=self.user_id,
         )
@@ -167,12 +205,15 @@ async def prompt_for_slides(
     interaction: discord.Interaction,
     bot,
     user_id: int,
-) -> str | None:
+) -> tuple[str | None, str | None, str | None]:
     """
     Prompt user for optional slides PDF upload.
     
     Returns:
-        Path to downloaded PDF or None
+        Tuple of (slides_url, slides_source, original_path)
+        - slides_url: Path to downloaded PDF or Drive URL
+        - slides_source: "drive" | "upload" | None
+        - original_path: Original file path or Drive URL (for footer/re-upload)
     """
     import asyncio
     
@@ -195,11 +236,12 @@ async def prompt_for_slides(
         pass
     
     if view.choice is None:
-        return None
+        return None, None, None
     
     if view.choice == "drive":
         # Return Drive URL directly
-        return getattr(view, 'drive_url', None)
+        drive_url = getattr(view, 'drive_url', None)
+        return drive_url, "drive", drive_url
     
     if view.choice == "upload":
         # Wait for file upload
@@ -233,23 +275,23 @@ async def prompt_for_slides(
                 ephemeral=True
             )
             
-            return file_path
+            return file_path, "upload", file_path
             
         except asyncio.TimeoutError:
             await interaction.followup.send(
                 "⏰ Timeout - tiếp tục không có slides",
                 ephemeral=True,
             )
-            return None
+            return None, None, None
         except Exception as e:
             logger.exception("Error uploading slides")
             await interaction.followup.send(
                 f"❌ Lỗi upload: {str(e)[:50]}",
                 ephemeral=True,
             )
-            return None
+            return None, None, None
     
-    return None
+    return None, None, None
 
 
 class VideoErrorView(discord.ui.View):
@@ -386,6 +428,8 @@ class VideoLectureProcessor:
         guild_id: int,
         user_id: int,
         slides_url: Optional[str] = None,
+        slides_source: Optional[str] = None,  # "drive" | "upload" | None
+        slides_original_path: Optional[str] = None,  # Original path or Drive URL
     ):
         self.interaction = interaction
         self.youtube_url = youtube_url
@@ -393,6 +437,8 @@ class VideoLectureProcessor:
         self.guild_id = guild_id
         self.user_id = user_id
         self.slides_url = slides_url
+        self.slides_source = slides_source
+        self.slides_original_path = slides_original_path
         self.status_msg: Optional[discord.WebhookMessage] = None
         self.temp_files: list[str] = []
         self.video_path: Optional[str] = None
@@ -805,6 +851,27 @@ class VideoLectureProcessor:
                     cleanup_files(frame_paths)
                 else:
                     await send_chunked(self.interaction.channel, header + final_summary)
+            
+            # =============================================
+            # STAGE 6: Send slides footer/attachment
+            # =============================================
+            if self.slides_source == "drive" and self.slides_original_path:
+                # Drive link - append footer with link
+                await self.interaction.channel.send(
+                    f"📄 **Slides:** <{self.slides_original_path}>"
+                )
+            elif self.slides_source == "upload" and self.slides_original_path:
+                # Upload - re-send the file
+                if os.path.exists(self.slides_original_path):
+                    try:
+                        filename = os.path.basename(self.slides_original_path)
+                        file = discord.File(self.slides_original_path, filename=filename)
+                        await self.interaction.channel.send(
+                            "📄 **Slides:**",
+                            file=file
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to re-upload slides: {e}")
             
             # Cleanup cache and temp files
             lecture_cache.clear_pipeline_cache(self.cache_id)

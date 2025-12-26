@@ -106,7 +106,7 @@ async def merge_summaries(
         slide_instructions = f"""Có {slide_count} trang slide
 - Chèn `[-PAGE:X-]` để minh họa slide trang X (X là số trang 1-indexed)
 - Chỉ chèn slide QUAN TRỌNG: diagram, công thức, bảng so sánh, code, hình minh họa
-- Tối đa 3-10 slides tùy độ phức tạp bài giảng
+- Tối đa 5-10 slides tùy độ phức tạp bài giảng
 - **QUY TẮC QUAN TRỌNG:**
   - CHỈ chèn slide khi nội dung slide TRỰC TIẾP liên quan đến đoạn văn bản ngay trước đó
   - Caption mô tả slide (trong ngoặc đơn sau slide) phải MÔ TẢ CHÍNH XÁC nội dung THỰC SỰ trong slide
@@ -285,6 +285,63 @@ def cleanup_file(file, api_key: Optional[str] = None) -> None:
         logger.info(f"Deleted Gemini file: {file.name}")
     except Exception as e:
         logger.warning(f"Failed to delete Gemini file: {e}")
+
+
+async def summarize_pdfs(
+    pdf_paths: list[str],
+    prompt: str,
+    api_key: Optional[str] = None,
+    thinking_level: str = "high",
+) -> str:
+    """
+    Summarize multiple PDF files using Gemini API.
+    
+    Args:
+        pdf_paths: List of paths to PDF files
+        prompt: The prompt to use for summarization
+        api_key: Optional Gemini API key
+        thinking_level: Thinking level for Gemini (minimal/low/medium/high)
+    
+    Returns:
+        Generated summary text
+    """
+    from google.genai import types
+    
+    client = get_client(api_key)
+    
+    # Upload all PDFs
+    uploaded_files = []
+    try:
+        for pdf_path in pdf_paths:
+            uploaded = client.files.upload(file=pdf_path)
+            uploaded_files.append(uploaded)
+            logger.info(f"Uploaded PDF: {pdf_path} -> {uploaded.name}")
+        
+        # Build content with all files + prompt
+        contents = uploaded_files + [prompt]
+        
+        # Generate with thinking
+        logger.info(f"Calling Gemini with {len(pdf_paths)} PDFs, thinking={thinking_level}")
+        start = time.time()
+        
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=contents,
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_level=thinking_level)
+            ),
+        )
+        
+        logger.info(f"Generated in {time.time()-start:.1f}s, {len(response.text)} chars")
+        return response.text
+        
+    finally:
+        # Always cleanup uploaded files
+        for f in uploaded_files:
+            try:
+                client.files.delete(name=f.name)
+            except Exception as e:
+                logger.warning(f"Failed to cleanup Gemini file {f.name}: {e}")
 
 
 def extract_youtube_id(url: str) -> Optional[str]:

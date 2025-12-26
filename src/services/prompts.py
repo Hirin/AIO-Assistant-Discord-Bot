@@ -270,7 +270,7 @@ GEMINI_MERGE_PROMPT = """
 - **Mục lục (TOC):** dùng format `[-"TÊN SECTION"- | -SECONDSs-]`
   - VD đúng: `[-"Giới thiệu Text Classification"- | -504s-]`
   - VD sai: `[-Giới thiệu- | -504-]` (thiếu ngoặc kép, thiếu 's')
-- Công thức toán dùng Unicode symbols (α, β, ∑, √, →, ≈, ≤, ≥) thay vì LaTeX
+- Công thức toán dùng Unicode symbols (α, β, ∑, √, →, ≈, ≤, ≥) thay vì LaTeX vì discord không render được LaTeX
 - Viết CHI TIẾT và ĐẦY ĐỦ để học viên có thể ôn lại mà không cần xem lại video
 
 **SLIDES:** {slide_instructions}
@@ -324,3 +324,72 @@ Hãy tổng hợp thành MỘT bài HOÀN CHỈNH và CHI TIẾT:
 """
 
 
+# ============================================================================
+# PREVIEW SLIDES PROMPTS (Multi-document)
+# ============================================================================
+
+PREVIEW_SLIDES_PROMPT = """Đây là tài liệu/slides cho một buổi học. Có thể có NHIỀU file.
+
+**Nhiệm vụ:** Tổng hợp NỘI DUNG CHÍNH từ TẤT CẢ tài liệu để học viên chuẩn bị trước buổi học.
+
+**Quy tắc quan trọng:**
+- **Tổng hợp theo chủ đề**: Gộp nội dung liên quan từ nhiều tài liệu, KHÔNG tách theo từng file
+- **Mỗi nội dung quan trọng PHẢI có ít nhất 1 slide minh họa**
+- **Slide marker:** `[-DOC{N}:PAGE:{X}-]` với N = số thứ tự tài liệu (1,2...), X = số trang
+- **Công thức toán:** Dùng Unicode symbols (α, β, ∑, √, →, ≈, ≤, ≥) thay vì LaTeX
+- Tổng cộng 10-15 slides quan trọng nhất
+- Ưu tiên slides có: Diagram, công thức, bảng so sánh, code, hình minh họa
+
+**Output format:**
+
+## 📚 Tổng quan
+- **Số tài liệu:** X files
+- **Chủ đề chính:** (Tên topic của buổi học)
+
+## 📖 Nội dung chính
+
+### 1. [Tên khái niệm/Section]
+Giải thích ngắn gọn khái niệm này.
+
+[-DOC1:PAGE:X-] (Mô tả slide: diagram/công thức/ví dụ)
+
+**Điểm quan trọng:**
+- Point 1
+- Point 2
+
+---
+
+### 2. [Tên khái niệm/Section tiếp theo]
+Giải thích ngắn gọn.
+
+[-DOC2:PAGE:Y-] (Mô tả slide)
+
+**Điểm quan trọng:**
+- ...
+
+---
+
+(Tiếp tục với các section khác...)
+
+---
+
+## 🎯 Kiến thức tiên quyết
+- Những gì cần biết trước khi học bài này (nếu có)
+
+## 📌 Nội dung quan trọng cần xem kỹ
+
+### [Tên nội dung 1]
+**Lý do quan trọng:** Giải thích tại sao cần nắm kỹ
+[-DOC1:PAGE:X-] (Mô tả chi tiết slide)
+
+### [Tên nội dung 2]
+**Lý do quan trọng:** ...
+[-DOC2:PAGE:Y-] (Mô tả chi tiết slide)
+
+---
+
+**Nhắc lại quy tắc:**
+- MỖI nội dung quan trọng PHẢI có ít nhất 1 slide minh họa
+- Tổng hợp từ TẤT CẢ tài liệu theo chủ đề
+- Chỉ đánh dấu slides thật sự quan trọng (10-15 slides)
+"""

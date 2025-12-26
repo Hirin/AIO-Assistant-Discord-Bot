@@ -68,6 +68,39 @@ class LectureMainView(discord.ui.View):
             view=view
         )
     
+    @discord.ui.button(label="📄 Preview", style=discord.ButtonStyle.success)
+    async def preview_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Preview slides/documents before class"""
+        from .preview_views import PreviewSourceView
+        
+        # Create embed with instructions
+        embed = discord.Embed(
+            title="📄 Preview Tài Liệu",
+            description=(
+                "Chuẩn bị trước buổi học bằng cách tổng hợp NỘI DUNG CHÍNH từ slides/tài liệu.\n\n"
+                "**Chọn cách upload tài liệu:**"
+            ),
+            color=discord.Color.blue(),
+        )
+        embed.add_field(
+            name="📤 Upload PDF",
+            value="Upload 1-5 file PDF trực tiếp",
+            inline=True
+        )
+        embed.add_field(
+            name="🔗 Google Drive",
+            value="Paste link Drive (1 hoặc nhiều file)",
+            inline=True
+        )
+        embed.set_footer(text="Có thể upload tối đa 5 tài liệu")
+        
+        view = PreviewSourceView(
+            guild_id=self.guild_id,
+            user_id=self.user_id,
+        )
+        
+        await interaction.response.edit_message(embed=embed, view=view)
+    
     @discord.ui.button(label="🔑 Gemini API", style=discord.ButtonStyle.secondary)
     async def config_gemini_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Open Gemini API config view"""
@@ -109,6 +142,7 @@ class LectureMainView(discord.ui.View):
     @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.danger)
     async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(content="✅ Đã đóng", embed=None, view=None)
+
 
 
 class GeminiApiConfigView(discord.ui.View):
