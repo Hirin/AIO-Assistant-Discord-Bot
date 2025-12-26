@@ -10,26 +10,29 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Lazy import to avoid startup issues
-_client = None
+# No global client - always create fresh per request
 
 
-def get_client():
-    """Get or create Gemini client"""
-    global _client
-    if _client is None:
-        from google import genai
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not set")
-        os.environ["GOOGLE_API_KEY"] = api_key
-        _client = genai.Client()
-    return _client
+def get_client(api_key: Optional[str] = None):
+    """
+    Create Gemini client with given or env API key.
+    Always creates a fresh client per request.
+    """
+    from google import genai
+    
+    if api_key:
+        return genai.Client(api_key=api_key)
+    
+    # Fallback to env
+    env_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not env_key:
+        raise ValueError("No Gemini API key provided")
+    return genai.Client(api_key=env_key)
 
 
-async def upload_video(video_path: str):
+async def upload_video(video_path: str, api_key: Optional[str] = None):
     """Upload video to Gemini Files API and wait for processing"""
-    client = get_client()
+    client = get_client(api_key)
     
     logger.info(f"Uploading video: {video_path}")
     start = time.time()
@@ -55,11 +58,12 @@ async def generate_lecture_summary(
     video_file,
     prompt: str,
     guild_id: Optional[int] = None,
+    api_key: Optional[str] = None,
 ) -> str:
     """Generate lecture summary from video with thinking mode"""
     from google.genai import types
     
-    client = get_client()
+    client = get_client(api_key)
     
     logger.info("Generating lecture summary...")
     start = time.time()
@@ -79,23 +83,46 @@ async def generate_lecture_summary(
 async def merge_summaries(
     summaries: list[str],
     merge_prompt: str,
+    slide_count: int = 0,
+    full_transcript: str = "",
+    api_key: Optional[str] = None,
 ) -> str:
-    """Merge multiple part summaries into one"""
+    """Merge multiple part summaries into one, with slides and transcript context"""
     from google.genai import types
     
-    client = get_client()
+    client = get_client(api_key)
     
     # Build context with part summaries
     parts_text = ""
     for i, summary in enumerate(summaries, 1):
         parts_text += f"\n**PHẦN {i}:**\n{summary}\n"
     
+    # Truncate transcript if too long (keep first 50k chars)
+    if len(full_transcript) > 50000:
+        full_transcript = full_transcript[:50000] + "\n...(truncated)"
+    
+    # Generate slide instructions based on count
+    if slide_count > 0:
+        slide_instructions = f"""Có {slide_count} trang slide
+- Chèn `[-PAGE:X-]` để minh họa slide trang X (X là số trang 1-indexed)
+- Chỉ chèn slide QUAN TRỌNG: diagram, công thức, bảng so sánh, code, hình minh họa
+- Tối đa 3-10 slides tùy độ phức tạp bài giảng
+- **QUY TẮC QUAN TRỌNG:**
+  - CHỈ chèn slide khi nội dung slide TRỰC TIẾP liên quan đến đoạn văn bản ngay trước đó
+  - Caption mô tả slide (trong ngoặc đơn sau slide) phải MÔ TẢ CHÍNH XÁC nội dung THỰC SỰ trong slide
+  - KHÔNG viết caption dựa trên nội dung văn bản xung quanh - hãy nhìn vào slide và mô tả những gì BẠN THẤY"""
+    else:
+        slide_instructions = "(Không có slide - KHÔNG tạo [-PAGE:X-] markers)"
+    
     # Build prompt
     full_prompt = merge_prompt.format(
         parts_summary=parts_text,
+        slide_count=slide_count,
+        slide_instructions=slide_instructions,
+        full_transcript=full_transcript if full_transcript else "(Không có transcript)",
     )
     
-    logger.info(f"Merging {len(summaries)} summaries...")
+    logger.info(f"Merging {len(summaries)} summaries (slides={slide_count}, transcript={len(full_transcript)} chars)...")
     start = time.time()
     
     response = client.models.generate_content(
@@ -135,10 +162,125 @@ def format_video_timestamps(text: str, video_url: str) -> str:
     return re.sub(pattern, replace_timestamp, text)
 
 
-def cleanup_file(file) -> None:
+def format_toc_hyperlinks(text: str, video_url: str) -> str:
+    """
+    Convert table of contents format [-"TOPIC"- | -SECONDSs-] to clickable hyperlinks.
+    Example: [-"Tổng quan mô hình"- | -504s-] -> [08:24 - Tổng quan mô hình](<video_url&t=504>)
+    """
+    import re
+    
+    def seconds_to_mmss(seconds: int) -> str:
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+        if hours > 0:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        return f"{minutes}:{secs:02d}"
+    
+    def replace_toc_entry(match):
+        topic = match.group(1).strip()
+        seconds = int(match.group(2))
+        mmss = seconds_to_mmss(seconds)
+        return f"[{mmss} - {topic}](<{video_url}&t={seconds}>)"
+    
+    # Pattern: [-"TOPIC"- | -SECONDSs-]
+    pattern = r'\[-"([^"]+)"-\s*\|\s*-(\d+)s-\]'
+    return re.sub(pattern, replace_toc_entry, text)
+
+
+def parse_frames_and_text(text: str) -> list[tuple[str, int | None]]:
+    """
+    Parse text and split at [-FRAME:XXs-] markers.
+    
+    Returns list of tuples: (text_chunk, frame_seconds or None)
+    Example: "Hello [-FRAME:100s-] World" -> [("Hello ", 100), (" World", None)]
+    """
+    import re
+    
+    pattern = r'\[-FRAME:(\d+)s-\]'
+    parts = []
+    last_end = 0
+    
+    for match in re.finditer(pattern, text):
+        # Text before this frame marker
+        text_before = text[last_end:match.start()]
+        frame_seconds = int(match.group(1))
+        
+        if text_before.strip():
+            parts.append((text_before, frame_seconds))
+        else:
+            parts.append(("", frame_seconds))
+        
+        last_end = match.end()
+    
+    # Remaining text after last marker
+    remaining = text[last_end:]
+    if remaining.strip():
+        parts.append((remaining, None))
+    
+    # If no frames found, return original text
+    if not parts:
+        parts.append((text, None))
+    
+    return parts
+
+
+def parse_pages_and_text(text: str) -> list[tuple[str, int | None]]:
+    """
+    Parse text and split at [-PAGE:X-] markers.
+    
+    Returns list of tuples: (text_chunk, page_number or None)
+    Example: "Hello [-PAGE:5-] World" -> [("Hello ", 5), (" World", None)]
+    """
+    import re
+    
+    pattern = r'\[-PAGE:(\d+)-\]'
+    parts = []
+    last_end = 0
+    
+    for match in re.finditer(pattern, text):
+        # Text before this page marker
+        text_before = text[last_end:match.start()]
+        page_num = int(match.group(1))
+        
+        if text_before.strip():
+            parts.append((text_before, page_num))
+        else:
+            parts.append(("", page_num))
+        
+        last_end = match.end()
+    
+    # Remaining text after last marker
+    remaining = text[last_end:]
+    if remaining.strip():
+        parts.append((remaining, None))
+    
+    # If no pages found, return original text
+    if not parts:
+        parts.append((text, None))
+    
+    return parts
+
+
+def strip_page_markers(text: str) -> str:
+    """
+    Remove [-PAGE:X-] markers and their captions from text.
+    Used when no slides are available.
+    
+    Example: 
+        "Text [-PAGE:1-] (Caption here) more text" -> "Text more text"
+    """
+    import re
+    
+    # Pattern: [-PAGE:X-] optionally followed by (caption)
+    pattern = r'\[-PAGE:\d+-\]\s*(?:\([^)]*\))?'
+    return re.sub(pattern, '', text)
+
+
+def cleanup_file(file, api_key: Optional[str] = None) -> None:
     """Delete uploaded file from Gemini"""
     try:
-        client = get_client()
+        client = get_client(api_key)
         client.files.delete(name=file.name)
         logger.info(f"Deleted Gemini file: {file.name}")
     except Exception as e:

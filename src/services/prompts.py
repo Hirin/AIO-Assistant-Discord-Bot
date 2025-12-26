@@ -197,10 +197,14 @@ GEMINI_LECTURE_PROMPT_PART1 = """Bạn là trợ lý trích xuất nội dung b�
 
 **Video này bắt đầu từ 0:00.**
 
+**TRANSCRIPT PHẦN NÀY:**
+{transcript_segment}
+
 **Lưu ý quan trọng:**
 - Timestamps dùng format `[-SECONDSs-]` với SECONDS là số giây (VD: [-330s-] cho 5:30, [-5025s-] cho 1:23:45)
 - **BỎ QUA hoàn toàn** section không có thông tin
 - **Công thức toán:** Viết bằng symbols Unicode (α, β, ∑, √, →, ≈, ≤, ≥) thay vì LaTeX
+- Tập trung vào nội dung VIDEO kết hợp với transcript để chính xác hơn
 
 Hãy trích xuất CHI TIẾT nội dung bài giảng theo cấu trúc:
 
@@ -228,7 +232,9 @@ GEMINI_LECTURE_PROMPT_PART_N = """Bạn là trợ lý trích xuất nội dung b
 
 **Video này bắt đầu từ {start_time} giây (tiếp theo của phần trước).**
 **Timestamps ghi theo thời gian THỰC của video gốc bằng số giây (VD: nếu video bắt đầu từ 3600s, thì phút đầu của phần này ghi là [-3600s-]).**
-- **Công thức toán:** Viết bằng symbols Unicode (α, β, ∑, √, →, ≈, ≤, ≥) thay vì LaTeX
+
+**TRANSCRIPT PHẦN NÀY:**
+{transcript_segment}
 
 **TÓM TẮT CÁC PHẦN TRƯỚC:**
 {previous_context}
@@ -238,8 +244,9 @@ GEMINI_LECTURE_PROMPT_PART_N = """Bạn là trợ lý trích xuất nội dung b
 **Lưu ý quan trọng:**
 - Timestamps dùng format `[-SECONDSs-]` với SECONDS là số giây thực của video gốc
 - **BỎ QUA** section không có thông tin
-- **Công thức toán:** Dùng Unicode symbols
+- **Công thức toán:** Dùng Unicode symbols (α, β, ∑, √, →, ≈, ≤, ≥)
 - **KHÔNG lặp lại** nội dung đã có trong phần trước
+- Tập trung vào nội dung VIDEO kết hợp với transcript để chính xác hơn
 
 Tiếp tục trích xuất NỘI DUNG MỚI trong phần này:
 
@@ -259,9 +266,17 @@ Chỉ trích xuất nội dung MỚI, không lặp lại phần trước."""
 
 GEMINI_MERGE_PROMPT = """
 **Quy tắc format QUAN TRỌNG:**
-- Timestamps dùng format `[-SECONDSs-]` với SECONDS là số giây (VD: [-930s-] cho 15:30)
+- **Timestamps:** dùng format `[-SECONDSs-]` với SECONDS là số giây (VD: [-930s-] cho 15:30)
+- **Mục lục (TOC):** dùng format `[-"TÊN SECTION"- | -SECONDSs-]`
+  - VD đúng: `[-"Giới thiệu Text Classification"- | -504s-]`
+  - VD sai: `[-Giới thiệu- | -504-]` (thiếu ngoặc kép, thiếu 's')
 - Công thức toán dùng Unicode symbols (α, β, ∑, √, →, ≈, ≤, ≥) thay vì LaTeX
 - Viết CHI TIẾT và ĐẦY ĐỦ để học viên có thể ôn lại mà không cần xem lại video
+
+**SLIDES:** {slide_instructions}
+
+**TRANSCRIPT ĐẦY ĐỦ (tham khảo timestamps):**
+{full_transcript}
 
 ---
 Dưới đây là tổng hợp từ nhiều phần của một bài giảng dài.
@@ -282,6 +297,7 @@ Hãy tổng hợp thành MỘT bài HOÀN CHỈNH và CHI TIẾT:
 
 **1. [Tên phần/Section]**
 - **Khái niệm A:** Định nghĩa ĐẦY ĐỦ [-SECONDSs-]
+[-PAGE:X-]
 - **Khái niệm B:** Giải thích rõ ràng [-SECONDSs-]
 
 **2. [Tên phần tiếp theo]**
@@ -289,6 +305,7 @@ Hãy tổng hợp thành MỘT bài HOÀN CHỈNH và CHI TIẾT:
 
 ## 📊 Các ví dụ minh họa quan trọng
 - **Ví dụ 1:** Mô tả chi tiết case study, tính toán, hoặc demo [-SECONDSs-]
+[-PAGE:X-]
 - **Ví dụ 2:** ... [-SECONDSs-]
 
 ## 💡 Key Takeaways tổng hợp
@@ -301,8 +318,8 @@ Hãy tổng hợp thành MỘT bài HOÀN CHỈNH và CHI TIẾT:
 - **A:** Trả lời chi tiết
 
 ## 📂 Mục lục (Table of Contents)
-- Tên section/topic [-SECONDSs-]
-- Tên section tiếp theo [-SECONDSs-]
+- [-"Tên section đầu tiên"- | -SECONDSs-]
+- [-"Tên section tiếp theo"- | -SECONDSs-]
 - ...
 """
 

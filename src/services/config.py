@@ -145,6 +145,50 @@ def set_user_gemini_api(user_id: int, api_key: str):
     logger.info(f"Gemini API key set for user {user_id}")
 
 
+def get_user_fireflies_api(user_id: int) -> Optional[str]:
+    """Get user's personal Fireflies API key (no fallback to global)"""
+    configs = _load_user_configs()
+    user_key = str(user_id)
+    
+    user_config = configs.get(user_key, {})
+    return user_config.get("fireflies_api_key")
+
+
+def set_user_fireflies_api(user_id: int, api_key: str):
+    """Set user's personal Fireflies API key"""
+    configs = _load_user_configs()
+    user_key = str(user_id)
+    
+    if user_key not in configs:
+        configs[user_key] = {}
+    
+    configs[user_key]["fireflies_api_key"] = api_key
+    _save_user_configs(configs)
+    logger.info(f"Fireflies API key set for user {user_id}")
+
+
+def get_user_assemblyai_api(user_id: int) -> Optional[str]:
+    """Get user's personal AssemblyAI API key (no fallback to global)"""
+    configs = _load_user_configs()
+    user_key = str(user_id)
+    
+    user_config = configs.get(user_key, {})
+    return user_config.get("assemblyai_api_key")
+
+
+def set_user_assemblyai_api(user_id: int, api_key: str):
+    """Set user's personal AssemblyAI API key"""
+    configs = _load_user_configs()
+    user_key = str(user_id)
+    
+    if user_key not in configs:
+        configs[user_key] = {}
+    
+    configs[user_key]["assemblyai_api_key"] = api_key
+    _save_user_configs(configs)
+    logger.info(f"AssemblyAI API key set for user {user_id}")
+
+
 
 def get_custom_prompt(guild_id: int) -> str:
     """

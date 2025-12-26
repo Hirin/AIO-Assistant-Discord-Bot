@@ -50,16 +50,36 @@ async def get_video_info(video_path: str) -> VideoInfo:
     )
 
 
-def calculate_num_parts(size_bytes: int) -> int:
-    """Calculate number of parts needed based on file size"""
+MAX_DURATION_SINGLE_PART = 7200  # 2 hours - Gemini 3 Flash struggles with longer videos
+
+
+def calculate_num_parts(size_bytes: int, duration_seconds: float = 0) -> int:
+    """Calculate number of parts needed based on file size and duration.
+    
+    Args:
+        size_bytes: File size in bytes
+        duration_seconds: Video duration in seconds (if 0, only size is used)
+    """
     size_mb = size_bytes / (1024 * 1024)
     
+    # Calculate parts needed by size
     if size_mb <= MAX_PART_SIZE_MB:
-        return 1
+        parts_by_size = 1
     elif size_mb <= MAX_PART_SIZE_MB * 2:
-        return 2
+        parts_by_size = 2
     else:
-        return 3  # Max 3 parts
+        parts_by_size = 3  # Max 3 parts
+    
+    # Calculate parts needed by duration (>2h = 2 parts, >4h = 3 parts)
+    if duration_seconds > MAX_DURATION_SINGLE_PART * 2:
+        parts_by_duration = 3
+    elif duration_seconds > MAX_DURATION_SINGLE_PART:
+        parts_by_duration = 2
+    else:
+        parts_by_duration = 1
+    
+    # Use the larger of the two
+    return max(parts_by_size, parts_by_duration)
 
 
 async def split_video(
@@ -123,6 +143,46 @@ async def split_video(
     return parts
 
 
+async def extract_audio(video_path: str, output_dir: str = "/tmp") -> str:
+    """
+    Extract audio from video as MP3.
+    
+    Args:
+        video_path: Path to video file
+        output_dir: Directory to save audio file
+        
+    Returns:
+        Path to extracted audio file
+    """
+    base_name = os.path.splitext(os.path.basename(video_path))[0]
+    output_path = os.path.join(output_dir, f"{base_name}_audio.mp3")
+    
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-vn",  # No video
+        "-acodec", "libmp3lame",
+        "-ab", "128k",  # 128kbps for smaller size
+        "-ar", "44100",  # Standard sample rate
+        output_path
+    ]
+    
+    logger.info(f"Extracting audio from {video_path}")
+    
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await process.communicate()
+    
+    if process.returncode != 0:
+        raise RuntimeError(f"ffmpeg audio extraction failed: {stderr.decode()}")
+    
+    logger.info(f"Audio extracted: {output_path}")
+    return output_path
+
+
 def format_timestamp(seconds: float) -> str:
     """Format seconds as MM:SS or H:MM:SS"""
     hours = int(seconds // 3600)
@@ -132,6 +192,40 @@ def format_timestamp(seconds: float) -> str:
     if hours > 0:
         return f"{hours}:{minutes:02d}:{secs:02d}"
     return f"{minutes}:{secs:02d}"
+
+
+async def extract_frame(video_path: str, seconds: int, output_dir: str = "/tmp") -> str:
+    """
+    Extract a single frame from video at specified timestamp.
+    Returns path to the extracted frame image.
+    """
+    import uuid
+    
+    frame_filename = f"frame_{seconds}s_{uuid.uuid4().hex[:8]}.jpg"
+    output_path = os.path.join(output_dir, frame_filename)
+    
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", str(seconds),
+        "-i", video_path,
+        "-vframes", "1",
+        "-q:v", "2",  # High quality JPEG
+        output_path
+    ]
+    
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await process.communicate()
+    
+    if process.returncode != 0:
+        logger.warning(f"Failed to extract frame at {seconds}s: {stderr.decode()}")
+        return None
+    
+    logger.info(f"Extracted frame at {seconds}s: {output_path}")
+    return output_path
 
 
 def cleanup_files(paths: list[str]) -> None:
