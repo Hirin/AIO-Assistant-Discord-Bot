@@ -184,6 +184,7 @@ async def summarize_meeting(
     pdf_path: str | None = None,
     prompt: str = "",
     api_key: str | None = None,
+    pdf_links: str = "",
     retries: int = 3,
 ) -> str:
     """
@@ -195,6 +196,7 @@ async def summarize_meeting(
         pdf_path: Optional path to PDF slides file
         prompt: Summary prompt
         api_key: Gemini API key
+        pdf_links: Formatted links extracted from PDF for References section
         retries: Number of retry attempts
         
     Returns:
@@ -223,11 +225,16 @@ async def summarize_meeting(
         if pdf_file.state.name == "FAILED":
             raise ValueError(f"PDF processing failed: {pdf_path}")
     
+    # Build prompt with pdf_links injected
+    full_prompt = prompt
+    if pdf_links:
+        full_prompt = f"{prompt}\n\n**Links từ slides (dùng cho section 📚 Tài liệu & Links):**\n{pdf_links}"
+    
     # Build content
     content = []
     if pdf_file:
         content.append(pdf_file)
-    content.append(f"{prompt}\n\n**TRANSCRIPT:**\n{transcript}")
+    content.append(f"{full_prompt}\n\n**TRANSCRIPT:**\n{transcript}")
     
     start = time.time()
     

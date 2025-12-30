@@ -19,6 +19,7 @@ Transcript có format [seconds] Speaker: Content. (VD: [117s] Tên: Nội dung)
 - Trích dẫn: dùng format `[-seconds-]` (VD: [-117s-])
 - **BỎ QUA hoàn toàn** section có tag *(Optional)* nếu không có thông tin → KHÔNG hiển thị section đó, KHÔNG viết "Không có thông tin"
 - Ưu tiên thông tin actionable, cụ thể.
+- **Format links:** Dùng markdown `[Tên hiển thị](<url>)` để ngắn gọn và tránh embed preview. VD: `[Google Docs](<https://docs.google.com/...>)`
 
 Hãy tóm tắt cuộc họp theo cấu trúc sau:
 
@@ -46,7 +47,10 @@ Hãy tóm tắt cuộc họp theo cấu trúc sau:
 - **[Câu hỏi]:** Người hỏi - Trạng thái (✅/❌) [-seconds-]
 
 ## 📚 Tài liệu & Links *(Optional)*
-- **[Tên]:** Mô tả ngắn [-seconds-]
+Liệt kê các tài liệu và links được đề cập trong cuộc họp hoặc từ slides:
+- **[Tên tài liệu]:** Mô tả ngắn về nội dung/mục đích - [Link](<url>) [-seconds-]
+
+Nếu được cung cấp "Links từ slides", hãy mô tả MỤC ĐÍCH của từng link dựa vào context trong slides/transcript.
 
 ## 📝 Ghi chú kỹ thuật *(Optional)*
 - Chi tiết specs, API, configs được thảo luận [-seconds-]

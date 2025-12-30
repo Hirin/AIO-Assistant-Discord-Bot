@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 import discord
 
-from services import fireflies, fireflies_api, llm, scheduler, transcript_storage, latex_utils
+from services import fireflies, fireflies_api, llm, scheduler, transcript_storage, latex_utils, slides as slides_service
 from utils.discord_utils import send_chunked
 
 logger = logging.getLogger(__name__)
@@ -228,6 +228,17 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
                 try:
                     logger.info(f"Using Gemini for meeting summary (user {interaction.user.id}, slides={'yes' if pdf_path else 'no'})")
                     
+                    # Extract links from PDF for References section
+                    pdf_links_str = ""
+                    if pdf_path:
+                        try:
+                            pdf_links = slides_service.extract_links_from_pdf(pdf_path)
+                            pdf_links_str = slides_service.format_pdf_links_for_prompt(pdf_links)
+                            if pdf_links:
+                                logger.info(f"Extracted {len(pdf_links)} links from PDF for meeting summary")
+                        except Exception as e:
+                            logger.warning(f"Failed to extract PDF links: {e}")
+                    
                     # Get meeting summary prompt
                     system_prompt = config_service.get_prompt(
                         self.guild_id,
@@ -240,6 +251,7 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
                         pdf_path=pdf_path,  # Can be None
                         prompt=system_prompt,
                         api_key=user_gemini_key,
+                        pdf_links=pdf_links_str,
                     )
                 except Exception as e:
                     logger.warning(f"Gemini failed, falling back to GLM: {e}")

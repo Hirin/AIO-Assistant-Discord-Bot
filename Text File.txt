@@ -1,0 +1,726 @@
+Nguyen Thi Mai Loan
+09:38
+dạ rõ ạ
+
+Hakabi
+09:45
+Chào ad, Nghe rõ ạ
+
+Dung Trieu
+09:48
+oke a.
+
+Jason Nguyễn
+09:51
+Dạ rõ ạ
+
+Lê Hồ Anh Duy
+11:17
+normalization
+
+Jason Nguyễn
+11:29
+Pooling
+
+Nguyễn Tuấn Minh
+11:29
+batch normalization, skip connection, input normalization,
+
+Võ Hương
+11:36
+skip connection
+
+he initialization, tăng layers
+
+Lê Hồ Anh Duy
+12:36
+thay đổi hàm kích hoạt ạ?
+
+Võ Hương
+12:57
+giảm lr
+
+Đồng Sdr
+13:29
+Convolution
+
+Huân Phạm
+13:49
+Optimizer, Shortcut Back
+
+Anh Thư
+13:55
+train từng layer
+
+Tấn Đạt
+14:15
+đổi phương pháp optimizer
+
+Ngô Minh Duy
+15:47
+Normalize Gradient
+
+Dennis Nguyễn
+37:30
+2
+
+Đạt Thanh Lê
+37:31
+2
+
+Tú Trân
+37:33
+2
+
+Đức Xuân
+37:34
+2
+
+Jason Nguyễn
+41:49
+Side note: Ở ngoài thực tế, ở các công ty đa quốc gia mà có làm bài toán về CV; thì trước khi ảnh được dùng làm data thì phải thông qua rất nhiều test về chất lượng ảnh
+
+Collapse All
+👍
+1
+❤️
+2
+Jason Nguyễn
+42:32
+Cái này FoxConn, ABB, General Electric hay Siemens áp dụng ạ
+
+Khánh KDN
+46:06
+Gặp Samples kiểu VN bị mấy biển quảng cáo, cành cây che thì  khóc thét :))
+
+Collapse All
+Xuân Cường
+46:47
+thế mà camera AI soi rõ đen đét, nể team nào làm cái đó kkk
+
+😂
+1
+🤣
+1
+Nguyễn Minh Quân
+47:11
+@Xuân Cường do chất lượng camera nữa mà
+
+Diệp Bảo Cường
+48:06
+ít hôm làm model thấy biển báo nào núp núp cành cây thì cảnh báo xác suất pikachu, xong được lên phường 🥲
+
+Bảo Văn
+47:58
+1
+
+Sơn Đỗ
+48:04
+1
+
+Dennis Nguyễn
+48:04
+1
+
+Tú Trân
+48:04
+2
+
+Lê Hồ Anh Duy
+48:04
+1
+
+Jason Nguyễn
+48:05
+1 ạ
+
+Nguyễn Minh Quân
+48:07
+1
+
+Xuân Cường
+48:08
+1
+
+Nhân Nguyễn Đức
+48:10
+1
+
+Võ Hương
+48:12
+1 ạ
+
+Phuc Dinh Tran Hoang
+48:12
+1
+
+Đồng Sdr
+48:14
+1
+
+Viet Hoang
+48:15
+1
+
+Đạt Thanh Lê
+48:15
+1
+
+Hoàng Kiệt
+49:30
+nếu độ chính xác của test > train
+
+vẫn được chấp nhận phải không ad
+
+Vu Tuan Anh
+50:23
+Việc thay đổi tỉ lệ xác suất 75% sang giá trị khác ảnh hưởng gì không ạ?
+
+Vu Tuan Anh
+51:44
+Cảm ơn ad (gía trị thực nghiệm)
+
+Ngô Minh Duy
+52:51
+ad ơi cho em hỏi , nếu dataset của mình là 50k ảnh, thêm nhiễu thì data set mới sẽ là 100k (50k bth + 50k có nhiễu) hay vẫn chỉ 50K nhiễu thôi ạ
+
+Collapse All
+Jason Nguyễn
+53:09
+Tuỳ vào lựa chọn của bạn
+
+Bảo Văn
+53:33 (Edited)
+dạ dạng như dùng BN thì sẽ đưa đề thi thực tế về lại dạng gần gần giống dạng ôn tâp =))
+
+👍
+1
+Nguyen Thien Quang
+54:06
+Bn ổn định distribution của giá trị train
+
+Nguyễn Minh Quân
+54:15
+BN đưa dữ liệu thành 1 khoảng quy định trước dễ học, dễ thi
+
+Tấn Đạt
+54:16
+batch normalazation giúp chuẩn hóa từng feature map giúp tránh bị shift distribution qua từng kernel
+
+👍
+2
+Hoàn NT
+01:04:11
+Nhiều chỗ họ nói là nếu ko có bước scale và shift thì ko tốt bằng việc thay đổi lại phân phối của mỗi kênh , mỗi cái một kiểu hoàn toàn khác nhau, ko thể đoán đc nó sẽ ntn. E chưa hiểu lắm chỗ này ạ. Nếu ko có shift và scale thì bước batch norm nào cug sẽ là chuẩn hoá về 0, 1, và BN ko có tham số học, như thế có phải tốt hơn ko ah
+
+Dennis Nguyễn
+01:08:18
+Giảm sự phụ thuộc weight a?
+
+Nguyễn Minh Quân
+01:09:54
+khác
+
+Lê Hồ Anh Duy
+01:09:55
+khác
+
+Võ Hương
+01:09:56
+khác ạ
+
+Huân Phạm
+01:10:52
+Không ạ
+
+Nguyễn Minh Quân
+01:10:53
+khác lạ\
+
+Đồng Sdr
+01:10:53
+khác
+
+Quang Nguyen Dang
+01:10:54
+khac
+
+Võ Hương
+01:10:55
+không ạ
+
+Xuân Cường
+01:10:55
+khong
+
+Dennis Nguyễn
+01:12:29
+ko
+
+Xuân Cường
+01:12:33
+ko
+
+Ngoc Anh Ngo
+01:13:54
+Thêm nhiễu ạ
+
+👍
+1
+Đồng Sdr
+01:21:08
+ok
+
+Thanh Ha Nguyen
+01:21:08
+dạ oke ạ
+
+Tấn Đạt
+01:21:09
+1
+
+Dennis Nguyễn
+01:21:09
+1
+
+25 - Đặng Nhật Minh
+01:21:11
+1
+
+Sơn Đỗ
+01:21:12
+1
+
+Nguyễn Tuấn Minh
+01:34:37
+Dropout cũng là 1 dạng thêm nhiễu ạ tại mô hình bị mất thông tin ạ : D
+
+👍
+1
+Nguyen Thien Quang
+01:34:42
+Giam overfit
+
+Võ Hương
+01:35:31
+giống như bỏ đi những câu quá khó trong dề ôn tập ạ?
+
+Dennis Nguyễn
+01:35:44
+Giảm bớt thông tin không cần thiết và khuếch đại các thông tin còn lại thì mô hình học tốt hơn ạ
+
+❤️
+2
+Quang Nguyen Dang
+01:36:23
+Để tránh các nodes học thuộc và phụ thuộc lẫn nhau
+
+❤️
+1
+Ngô Minh Duy
+01:37:52
+Em chỉ mới tìm hiểu sơ qua SNN , phương pháp Dropout này hiện có đang cùng í tưởng với SNN hong ạ
+
+❤️
+1
+Xuân Cường
+01:38:00
+nhưng mà nếu thế thì tại sao thêm nhiễu bằng nhiều cách  (noise, batch norm, dropout) thì lại tốt hơn là dùng 1 cách 😄
+
+Collapse All
+Jason Nguyễn
+01:38:22
+Không có 1 cỡ giày cho mọi cỡ chân
+
+Dennis Nguyễn
+01:38:26
+drop out thì nên để bao nhiêu ạ? Hay với mỗi loại dữ lieu thì sẽ phải chạy nhiều lần để tìm ra ạ?
+
+25 - Đặng Nhật Minh
+01:38:34
+Có khi nào xảy ra tình trạng dropout ở mỗi layer mà đến output cuối pàm cho mô hình chỉ học đc 10% ko ạ
+
+Hakabi
+01:39:39
+số lượng thêm nhiễu là mình tạo bao nhiêu phiên bản nhiễu cho tấm ảnh data gốc để mô hình học ? Và mức độ nhiễu nhiều hay ít mình sẽ kiểm soát thế nào ạ, có ngưỡng set nhiễu ra sao không ?
+
+Đạt Thanh Lê
+01:40:08 (Edited)
+E thấy paper vgg họ để 0.5
+
+Thanh Ha Nguyen
+01:40:13
+dropout nên để sau pooling phải không thầy? Hay có nguyên tắc để dropout trong layer không ạ?
+
+Hoàn NT
+01:42:19
+Như vậy là lời giải thích : làm cho các neuron đỡ phụ thuộc lẫn nhau, là ko đủ thuyết phục phải ko ah. Dường như chỉ có lời giải thích Thêm nhiều là rõ ràng nhất. E nghĩ cái chống phụ thuộc lẫn nhau hình như cug có vẻ là hướng giải thích
+
+Vũ Khải
+01:43:02
+dropout vs hàm relu hay dùng có làm tăng nguy cơ vanishing gradient không ạ, vì e nghĩ khi đạo hàm về khá nhiều node sẽ bằng 0 và không được cập nhập
+
+Collapse All
+Đạt Thanh Lê
+01:45:34
+Theo mình đó là lý do họ dùng batch norm á
+
+Viet Hoang
+01:43:14
+Khi nào mình sẽ sử dụng dropout ạ.
+
+Collapse All
+😁
+2
+😇
+1
+Đồng Sdr
+01:47:42
+Mục tiêu của buổi học hôm nay
+
+Vu Tuan Anh
+01:47:42
+Đây là mục tiêu chính của bài hôm nay
+
+Hoàng Kiệt
+01:49:38
+em nghĩ không
+
+Nguyễn Minh Quân
+01:49:54
+đã để trong mô hình thì e nghĩ là có
+
+Van Hau Nguyen
+01:50:08
+Có và không
+
+Đồng Sdr
+01:50:32
+Giống
+
+Quang Nguyen
+01:51:18
+Khác: 
+
+train: bỏ bớt dữ liệu 
+
+Test: thêm nhiễu cho khó hơn
+
+Hoàng Kiệt
+01:51:18
+em gặp trường hợp sử dụng dropout do nó random  khi train khoảng  1 2 epoch thì val > train, thì có chấp nhận hay mất cân bằng không ad
+
+Hakabi
+01:51:44
+thực tế, có trường hợp nào mình dùng droput mãi mà nó không lên được acc cho tập test không nhỉ 😄 ?
+
+Vu Tuan Anh
+01:51:49
+Test không Drop out Theo em hiểu. Chỉ Drop out trên train
+
+Nguyễn Tuấn Minh
+01:53:19
+tại model bị mất thông tin ạ
+
+Tấn Đạt
+01:53:19
+model bị học khó hơn do bị nhiễu
+
+Lê Hồ Anh Duy
+01:53:20
+tập train học khó hơn ạ?
+
+Vu Dang
+01:58:52
+dạ còn
+
+Dung Trieu
+01:58:52
+oke a
+
+Võ Hương
+01:58:53
+ok ạ
+
+Khánh KDN
+01:58:53
+dạ còn
+
+Xuân Cường
+01:58:59
+còn nguyên ạ
+
+Jason Nguyễn
+02:00:10
+Vì sao chỉ có L2 regularization không có L3, L4 hay Ln ạ?
+
+Hoàn NT
+02:02:56
+Ah, chỗ Dropout mà chống phụ thuộc lẫn nhau là 1 lý do có thể giải thích ntn đc ko ah : trong các bài cơ bản, thường bao h cũng phải có bước Feature Engineering, làm cho các feature tách biệt nhau thì mới hiệu năng tốt đc, vd thực hiện các bượvs làm cho từng feature độc lập, hay là PCA, …. Vậy dropdout nó cug làm cho feature trở nên độc lập, nên là đường cam sẽ lên
+
+Hoàn NT
+02:06:59 (Edited)
+(covariance giữa các feature càng ít càng tốt)
+
+Nguyễn Tuấn Minh
+02:12:12
+Vậy thêm dữ liệu lớn cũng là ý tưởng có transfer learning đúng không ạ. Khi mà mình có 1 mô hình đã pretrained từ 1 tập dữ liệu rất lớn...
+
+Nguyễn Đức
+02:14:50
+học khó hơn nên thi tốt hơn :))
+
+Huân Phạm
+02:14:52
+Học nhiều quá nhưng phương pháp chưa quá mạnh ạ =))
+
+Xuân Cường
+02:14:52
+thêm data nhiễu nên model phải học thêm
+
+Nguyen Thien Quang
+02:14:53
+dữ lieu train khó hơn
+
+Võ Hương
+02:14:53
+model học khó hơn do có nhiễu ạ
+
+Đạt Thanh Lê
+02:15:01
+học nhiều hơn :>
+
+Đức Xuân
+02:16:41
+tăng epoch lên ạ?
+
+Nguyễn Minh Quân
+02:16:43
+còn khả năng học thêm
+
+Bảo Văn
+02:16:44
+tăng layer
+
+Nguyễn Tuấn Minh
+02:16:44
+tăng capacity của model ạ
+
+Võ Hương
+02:16:44
+cần tăng train acc
+
+Van Hau Nguyen
+02:18:10
+Tôis ưu hyper parameter
+
+Nguyễn Minh Quân
+02:18:45
+initialization
+
+Học Vẹt
+02:18:46
+Skip Connection
+
+Tấn Đạt
+02:18:47
+skip connection
+
+Võ Hương
+02:18:50
+skip connection, advanced initialization
+
+Tấn Đạt
+02:20:27
+b
+
+Đồng Sdr
+02:20:28
+ b>
+
+Xuân Cường
+02:20:29
+|b|>|a|
+
+Van Hau Nguyen
+02:21:11
+K phù hợp
+
+Lê Hồ Anh Duy
+02:21:12
+ko ạ
+
+Nguyễn Tuấn Minh
+02:21:17
+không ạ
+
+Nguyen Thien Quang
+02:21:18
+ko ạ
+
+Võ Hương
+02:21:19
+ko ạ
+
+Học Vẹt
+02:21:22
+Adaptive Learning
+
+Khánh KDN
+02:21:26
+giảm
+
+Nguyễn Tuấn Minh
+02:21:28
+giảm ạ
+
+Nguyễn Minh Quân
+02:21:29
+giảm
+
+Van Hau Nguyen
+02:21:31
+Linh động
+
+Nam Khanh
+02:31:13
+oh vậy là trick tổng thể là thử nghiệm trick 1 đến 4 trc xong nếu muốn nhu cầu tăng test thì phải tăng train lên hơn thì áp dụng trick 5,6 thì sẽ bổ trợ tăng accuracy train thì đến h mình mong muốn có thể quay lại bổ sung trick 1-4 đến khi accuracy đạt độ phù hợp hả ad ạ, vì e thấy trick 5 thêm dữ liệu hơn thì accuracy test tăng còn trick 6 là train tăng
+
+👍
+2
+AI VIET NAM
+02:43:07
+https://kahoot.it/?pin=2821508&refer_method=link
+
+Bảo Văn
+02:57:54
+21
+
+Đồng Sdr
+02:57:55
+21
+
+Võ Hương
+02:57:55
+21
+
+Lân Kim Viên
+03:03:00
+Lần đầu lên top 1!
+
+👏
+1
+❤️
+1
+👍
+1
+Hakabi
+03:14:45
+Em muốn hỏi lại ở phần Quiz câu số 5. Theo em nghĩ là nếu mình làm augmentation cho tập test thì cũng tốt chứ nhỉ ? Vì khi data ở test nhận diện được nhiều pattern, nhiều noise hơn thì việc đưa data có pattern/nhiễu khác đi chút so với data train cũng sẽ giúp mô hình nhớ đến pattern gốc của tập train và phân loại đúng theo tập train?
+
+Collapse All
+Nguyễn Đức
+03:16:23
+nhưng tập test mình đâu cần học hay cập nhật tham số đâu ạ, và trong thực tế như ad cũng đã mô phỏng hồi nãy là video giao thông thì nó cũng đã có sẵn các nhiễu/mờ, lệch ánh sáng màu sắc rồi
+
+Bảo Văn
+03:19:06
+năm sau các phần giống như các cuộc thi zaloAI, vnptAI thì AIO2025 có được join ko ạ
+
+Collapse All
+👍🏿
+1
+Đồng Sdr
+03:20:01
+Welcom nha b
+
+Nguyễn Đức
+03:20:00
+sự thật vén màn...
+
+Nguyễn Minh Quân
+03:20:06
+gặp các tổ chức khác chắc cho out luôn 🙂)
+
+Ngô Minh Duy
+03:21:25
+ad ơi cho em hỏi bên ngoài một tí ạ. Em có đặt một câu hỏi hiện CNN có nhược điểm gì mà chưa bằng với hệ thần kinh của con người =)) (em trái ngành nên đôi khi hỏi những câu hỏi hơi ngố ) . Thì vô tình em tìm được một mô hình SNN (Spiking Neural Network). hiện theo kn của ad mô hình này có phổ biến để đào sâu research ko ạ. SNN khác với CNN ở chỗ thay vì liên tục truyền giá trị qua các node, thì trong SNN chỉ thực hiện truyền dữ liệu khi giá trị (spike) tại một node vượt một ngưỡng threshold nào đó (mô phỏng quá trình truyền tín hiệu giữa cái neuron sinh học trong não ng)
+
+Phong Ha
+03:21:25
+Em còn yếu muốn tham gia các cuộc thi thì join ntn ạ, chủ yếu lấy kiến thức thui
+
+Học Vẹt
+03:24:15
+ILLYA SUTKESVER
+
+Đức Xuân
+03:27:56
+Em out 3 cái luôn rùi ad
+
+Hoàn NT
+03:29:08
+Ad trả lời câu hỏi lúc đầu về BatchNorm ah, chắc nó trôi rồi
+
+Hoàn NT
+03:30:22
+Ko ah
+
+Tại sao lại có scale shift, bỏ nó đi có phải tốt hơn ko ah
+
+Vì nhiều người nói phải để cho nó phân bố lại lung tung ko thể đoán đc thì mới tốt
+
+Thanh Ha Nguyen
+03:34:50
+Dạ gamma vs Beta đó cũng được cập nhật theo hàm loss của bài toán luôn hả ad
+
+Hoàn NT
+03:35:47
+Nhưng dùng BN rõ ràng nó tốt hơn ko dùng ah, nên e hỏi tại sao nó tốt khi có cả scale, shift ah
+
+Hoàn NT
+03:39:13
+Ý của e là các tham số scale shift đó đc điều chỉnh theo mục đích cuối cùng là hàm Loss tối thiểu, và mấy cái scale shuft hội tụ về cái gì đó, và e thấy giá trị hội tụ đó có ko explainable lắm.
+
+Shift
+
+Khánh KDN
+03:40:37
+Có tính khả thi :))
+
+Đức Xuân
+03:44:32
+Em tham gia thi như black box nhma có thêm kinh nghiệm rùi ạ
+
+Thanh Ha Nguyen
+03:45:45
+Cảm ơn Ad
+
+Dung Trieu
+03:46:16
+em cảm ơn ad
+
+Khánh KDN
+03:46:17
+dạ, cảm ơn ad nhiều.
+
+Võ Hương
+03:46:21
+em cảm ơn ad ạ
+
+Dennis Nguyễn
+03:46:35
+Bye ad ạ
+
+Lân Kim Viên
+03:46:37
+Em cảm ơn thầy!
+
+Nguyễn Minh Quân
+03:46:42
+Dạ e cám ơn ad
+
+Lân Kim Viên
+03:46:44
+Em chào thầy!
+

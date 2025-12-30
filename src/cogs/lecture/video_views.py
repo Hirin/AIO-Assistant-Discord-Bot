@@ -79,75 +79,74 @@ class LectureSourceView(discord.ui.View):
 
 def preprocess_chat_session(raw_text: str) -> str:
     """
-    Filter junk from chat session text.
-    Keeps valuable Q&A, explanations, links, and insights.
-    Removes: short acks, simple numbers, emoji reactions, thank you messages.
+    Filter junk from chat session text using robust parsing.
+    Logic:
+    1. Parse messages (Name, Timestamp, Content)
+    2. Clean content (remove reaction lines, Collapse All, headers)
+    3. Filter: Keep if has link OR length >= 6 words
+    4. Format: JSON string matching user request
     """
     import re
+    import json
     
-    # Patterns for junk messages (case insensitive)
-    junk_patterns = [
-        # Simple acknowledgements
-        r'^(dạ|da|ok[eê]?|oke|vâng|rõ|hiểu|được|dc|đc|ổn|xong|done|yes|no|ko|không|k)\s*(ạ|a|nhé|nha|rồi|r)?\.?$',
-        # Just numbers (quiz answers)
-        r'^[1-9]\.?$',
-        # Simple short answers
-        r'^(khác|giống|có|ko|không|đúng|sai|đồng ý|agree|same|diff)\s*(ạ|a|nhé)?\.?$',
-        # Pure emoji reactions (but keep text with emoji)
-        r'^[\U0001F300-\U0001F9FF\u2600-\u26FF\u2700-\u27BF\s]+$',
-        # Short thank you at end
-        r'^(cảm ơn|cám ơn|thanks|thank|bye|chào)\s*(ad|admin|thầy|anh|chị|bạn)?\s*(ạ|a|nhé|nha|nhiều)?\.?$',
-        # Collapse All markers from Discord
-        r'^Collapse All$',
-        # Reaction counts like "👍 1" "❤️ 2"
-        r'^[\U0001F300-\U0001F9FF\u2600-\u26FF]+\s*\d+$',
-    ]
+    lines = [line_item.strip() for line_item in raw_text.split('\n')]
     
-    # Compile patterns
-    junk_regex = [re.compile(p, re.IGNORECASE | re.UNICODE) for p in junk_patterns]
+    # Patterns
+    time_pat = re.compile(r'^(\d{1,2}:\d{2}(?::\d{2})?)(?:\s*\(Edited\))?$')
+    reaction_count_pat = re.compile(r'^\d+$')
+    emoji_pat = re.compile(r'^[\U0001F300-\U0001F9FF\u2600-\u26FF\u2700-\u27BF]+$')
     
-    # Process line by line, keeping message structure
-    lines = raw_text.split('\n')
-    filtered_lines = []
-    current_message = []
-    
-    for line in lines:
-        stripped = line.strip()
+    # 1. Identify start indices
+    msg_starts = []
+    i = 0
+    while i < len(lines) - 1:
+        if time_pat.match(lines[i+1]) and lines[i]: 
+            msg_starts.append(i)
+            i += 1 
+        i += 1
         
-        # Check if this is a timestamp line (start of new message)
-        # Format: "Name\nHH:MM" or just timestamp
-        is_timestamp = bool(re.match(r'^\d{1,2}:\d{2}(:\d{2})?$', stripped))
-        
-        if is_timestamp and current_message:
-            # Get just the text part (after timestamp)
-            text_parts = [line_item for line_item in current_message if not re.match(r'^\d{1,2}:\d{2}', line_item.strip())]
-            text_only = ' '.join(text_parts).strip()
-            
-            # Skip if message is too short (less than 15 chars) unless it has a link
-            has_link = 'http' in text_only.lower()
-            is_junk = any(p.match(text_only) for p in junk_regex)
-            is_too_short = len(text_only) < 15 and not has_link
-            
-            if not is_junk and not is_too_short:
-                filtered_lines.extend(current_message)
-                filtered_lines.append('')  # Blank line between messages
-            
-            current_message = [line]
-        else:
-            current_message.append(line)
+    filtered_messages = []
     
-    # Don't forget last message
-    if current_message:
-        text_parts = [line_item for line_item in current_message if not re.match(r'^\d{1,2}:\d{2}', line_item.strip())]
-        text_only = ' '.join(text_parts).strip()
-        has_link = 'http' in text_only.lower()
-        is_junk = any(p.match(text_only) for p in junk_regex)
-        is_too_short = len(text_only) < 15 and not has_link
+    for idx, start_line_idx in enumerate(msg_starts):
+        name = lines[start_line_idx]
+        timestamp = time_pat.match(lines[start_line_idx+1]).group(1)
         
-        if not is_junk and not is_too_short:
-            filtered_lines.extend(current_message)
-    
-    return '\n'.join(filtered_lines).strip()
+        start_content = start_line_idx + 2
+        end_content = msg_starts[idx+1] if idx + 1 < len(msg_starts) else len(lines)
+        
+        clean_lines = []
+        for line in lines[start_content:end_content]:
+            if not line:
+                continue
+            if line == "Collapse All":
+                continue
+            if emoji_pat.match(line):
+                continue
+            if reaction_count_pat.match(line):
+                continue
+            clean_lines.append(line)
+            
+        full_content = "\n".join(clean_lines).strip()
+        
+        if not full_content:
+            continue
+            
+        # Filter Logic: Keep if Link OR >= 6 Words OR >= 3 Lines (code blocks)
+        has_link = 'http' in full_content.lower()
+        word_count = len(full_content.split())
+        line_count = len(clean_lines)
+        
+        is_junk = (word_count < 6) and (not has_link) and (line_count < 2)
+        
+        if not is_junk:
+            filtered_messages.append({
+                "name": name,
+                "time": timestamp,
+                "content": full_content
+            })
+            
+    # Return as JSON string
+    return json.dumps(filtered_messages, ensure_ascii=False, indent=2)
 
 
 def extract_links_from_chat(chat_text: str) -> list[str]:

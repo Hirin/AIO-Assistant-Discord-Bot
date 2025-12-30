@@ -9,6 +9,7 @@ Meeting summary bot với Fireflies.ai + GLM (Z.AI) và Lecture summarization v�
 - 📝 **Meeting Summarize** - Tóm tắt transcript với **Gemini** (priority) hoặc GLM (fallback)
 - 🧠 **Gemini Multimodal** - Xử lý slides PDF + transcript trong 1 call (khi có Gemini API key)
 - 📎 **Document Upload** - Upload PDF slides, tích hợp trực tiếp vào Gemini (max 200 trang)
+- 📚 **Auto References** - Extract links từ PDF slides, model mô tả chức năng
 - 💾 **24h Slide Cache** - Cache VLM output cho fallback GLM
 - 📅 **Schedule** - Lên lịch join meeting tự động
 - 📥 **Archive Backup** - Backup transcripts vào Discord channel
@@ -67,7 +68,7 @@ Meeting summary bot với Fireflies.ai + GLM (Z.AI) và Lecture summarization v�
 | 📄 **VLM Slide Extraction** | Fallback: Trích xuất content từ slides với GLM |
 | 🎬 **Video + Slides + Transcript** | Gemini multimodal: video + images + text |
 | 💬 **Community Insights** | Tự động lọc chat session (Q&A, Quiz, explanations) |
-| � **Auto References** | Extract links từ PDF/chat, model mô tả chức năng |
+| 📚 **Auto References** | Extract links từ PDF/chat (Lecture + Meeting), model mô tả |
 | 🔢 **LaTeX Rendering** | Block formulas → images, inline → Unicode symbols |
 | 💾 **Multi-layer Cache** | Video, transcript, slides, part summaries cached |
 | ⏱️ **Timestamp/Slide Links** | Convert `[-123s-]` và `[-PAGE:X-]` markers |
