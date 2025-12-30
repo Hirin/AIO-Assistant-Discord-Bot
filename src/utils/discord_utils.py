@@ -12,7 +12,7 @@ async def send_chunked(
     target: Union[discord.Interaction, discord.TextChannel],
     text: str,
     chunk_size: int = 1900,  # Slightly less than 2000 for safety
-) -> None:
+) -> list[discord.Message]:
     """
     Send a long message in chunks to avoid Discord's 2000 char limit.
     Splits by newlines to keep text coherent.
@@ -53,6 +53,8 @@ async def send_chunked(
     if current_chunk:
         chunks.append(current_chunk)
 
+    sent_messages = []
+    
     for i, chunk in enumerate(chunks):
         if not chunk.strip():
             continue
@@ -60,14 +62,20 @@ async def send_chunked(
         if isinstance(target, discord.Interaction):
             if i == 0 and not target.response.is_done():
                 await target.response.send_message(chunk)
+                msg = await target.original_response()
+                sent_messages.append(msg)
             else:
-                await target.followup.send(chunk)
+                msg = await target.followup.send(chunk)
+                sent_messages.append(msg)
         else:
-            await target.send(chunk)
+            msg = await target.send(chunk)
+            sent_messages.append(msg)
 
         # Rate limit protection
         if i < len(chunks) - 1:
             await asyncio.sleep(0.5)
+            
+    return sent_messages
 
 
 async def send_chunked_with_frames(
@@ -86,16 +94,18 @@ async def send_chunked_with_frames(
         chunk_size: Max chars per message
         
     Returns:
-        List of extracted frame paths for cleanup
+        tuple[list[str], list[discord.Message]]: (frame_paths, sent_messages)
     """
     from services.video import extract_frame
     
     frame_paths = []
+    sent_messages = []
     
     for text, frame_seconds in parts:
         # Send text chunk(s)
         if text.strip():
-            await send_chunked(channel, text, chunk_size)
+            msgs = await send_chunked(channel, text, chunk_size)
+            sent_messages.extend(msgs)
         
         # Extract and send frame if specified
         if frame_seconds is not None:
@@ -104,13 +114,14 @@ async def send_chunked_with_frames(
                 frame_paths.append(frame_path)
                 try:
                     file = discord.File(frame_path)
-                    await channel.send(file=file)
+                    msg = await channel.send(file=file)
+                    sent_messages.append(msg)
                     await asyncio.sleep(0.5)  # Rate limit
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).warning(f"Failed to send frame: {e}")
     
-    return frame_paths
+    return frame_paths, sent_messages
 
 
 async def send_chunked_with_pages(
@@ -119,7 +130,7 @@ async def send_chunked_with_pages(
     slide_images: list[str],
     latex_images: list[tuple[str, str]] | None = None,
     chunk_size: int = 1900,
-) -> None:
+) -> list[discord.Message]:
     """
     Send text chunks with embedded slide page images and LaTeX formula images.
     
@@ -138,10 +149,14 @@ async def send_chunked_with_pages(
     # Build a lookup dict for LaTeX images
     latex_lookup = {placeholder: path for placeholder, path in (latex_images or [])}
     
+    # Collect all messages sent
+    sent_messages = []
+
     async def send_text_with_latex(text: str):
         """Send text, replacing any LaTeX placeholders with images"""
         if not latex_lookup:
-            await send_chunked(channel, text, chunk_size)
+            msgs = await send_chunked(channel, text, chunk_size)
+            sent_messages.extend(msgs)
             return
         
         remaining = text
@@ -149,13 +164,15 @@ async def send_chunked_with_pages(
             if placeholder in remaining:
                 parts_split = remaining.split(placeholder, 1)
                 if parts_split[0].strip():
-                    await send_chunked(channel, parts_split[0], chunk_size)
+                    msgs = await send_chunked(channel, parts_split[0], chunk_size)
+                    sent_messages.extend(msgs)
                 
                 # Send LaTeX image
                 if os.path.exists(img_path):
                     try:
                         file = discord.File(img_path, filename="formula.png")
-                        await channel.send(file=file)
+                        msg = await channel.send(file=file)
+                        sent_messages.append(msg)
                         await asyncio.sleep(0.3)
                     except Exception as e:
                         logger.warning(f"Failed to send LaTeX image: {e}")
@@ -163,7 +180,8 @@ async def send_chunked_with_pages(
                 remaining = parts_split[1] if len(parts_split) > 1 else ""
         
         if remaining.strip():
-            await send_chunked(channel, remaining, chunk_size)
+            msgs = await send_chunked(channel, remaining, chunk_size)
+            sent_messages.extend(msgs)
     
     for part in parts:
         # Handle both old (text, page_num) and new (text, page_num, desc) formats
@@ -188,7 +206,8 @@ async def send_chunked_with_pages(
                         caption = f"📄 **Slide {page_num}**\n*({description})*"
                     else:
                         caption = f"📄 **Slide {page_num}**"
-                    await channel.send(caption, file=file)
+                    msg = await channel.send(caption, file=file)
+                    sent_messages.append(msg)
                     await asyncio.sleep(0.5)  # Rate limit
                 except Exception as e:
                     logger.warning(f"Failed to send slide {page_num}: {e}")
@@ -200,3 +219,5 @@ async def send_chunked_with_pages(
                 os.remove(img_path)
         except Exception:
             pass
+            
+    return sent_messages

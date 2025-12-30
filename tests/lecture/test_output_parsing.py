@@ -1,15 +1,8 @@
 """
 Tests for LLM output parsing functions.
 """
-import pytest
 
-from services.gemini import (
-    format_video_timestamps,
-    format_toc_hyperlinks,
-    format_external_links,
-    parse_frames_and_text,
-    parse_pages_and_text,
-)
+from services.gemini import format_video_timestamps, format_toc_hyperlinks, parse_frames_and_text, parse_pages_and_text
 from services.lecture_utils import parse_multi_doc_pages
 
 
@@ -24,6 +17,21 @@ class TestFormatVideoTimestamps:
         assert "[-30s-]" not in result
         assert "[00:30]" in result or "[0:30]" in result
         assert video_url in result or "t=30" in result
+    
+    def test_handles_backticked_timestamps(self):
+        text = "Check this `[-930s-]`."
+        video_url = "https://youtu.be/abc"
+        result = format_video_timestamps(text, video_url)
+        assert "[15:30](<https://youtu.be/abc&t=930>)" in result
+        assert "`" not in result  # Backticks should be removed
+
+    def test_handles_mixed_timestamps(self):
+        text = "Normal [-60s-] and code `[-120s-]`"
+        video_url = "https://youtu.be/abc"
+        result = format_video_timestamps(text, video_url)
+        # minutes are not zero-padded if hours=0
+        assert "[1:00](<https://youtu.be/abc&t=60>)" in result
+        assert "[2:00](<https://youtu.be/abc&t=120>)" in result
     
     def test_multiple_timestamps(self, video_url):
         """Should convert multiple timestamps."""
@@ -74,32 +82,7 @@ class TestFormatTocHyperlinks:
         assert "[Topic 1 | -30s-]" not in result or "Topic 1" in result
 
 
-class TestFormatExternalLinks:
-    """Tests for format_external_links function."""
-    
-    def test_wraps_urls(self):
-        """Should wrap URLs with <>."""
-        text = "Check https://example.com for info"
-        result = format_external_links(text)
-        
-        assert "<https://example.com>" in result
-    
-    def test_skips_already_wrapped(self):
-        """Should not double-wrap already wrapped URLs."""
-        text = "Already wrapped <https://example.com>"
-        result = format_external_links(text)
-        
-        # Should not have <<...>>
-        assert "<<" not in result
-        assert "<https://example.com>" in result
-    
-    def test_skips_markdown_links(self):
-        """Should skip URLs in markdown format."""
-        text = "A [link](https://example.com)"
-        result = format_external_links(text)
-        
-        # Should remain as markdown link
-        assert "[link](https://example.com)" in result
+
 
 
 class TestParseFramesAndText:

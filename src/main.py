@@ -11,7 +11,12 @@ from dotenv import load_dotenv
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+import logging
+
 from bot import DiscordBot
+
+# Suppress httpx INFO logs (Gemini API chunk uploads create many log lines)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def main():

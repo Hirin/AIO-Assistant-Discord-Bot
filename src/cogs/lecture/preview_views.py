@@ -316,7 +316,7 @@ class PreviewProcessor:
                 """Convert all PDFs to images"""
                 for doc in self.documents:
                     try:
-                        doc.images = slides_service.pdf_to_images(doc.path)
+                        doc.images = await slides_service.pdf_to_images_async(doc.path)
                         logger.info(f"Converted {doc.path}: {len(doc.images)} pages")
                     except Exception as e:
                         logger.warning(f"Failed to convert {doc.path}: {e}")

@@ -101,6 +101,7 @@ def extract_links_from_chat(chat_text: str) -> list[str]:
         r'discord\.com',
         r'discord\.gg',
         r'youtube\.com/live',  # Live stream links often not useful
+        r'forms\.gle',  # Quiz forms
     ]
     exclude_regex = [re.compile(p, re.IGNORECASE) for p in exclude_patterns]
     

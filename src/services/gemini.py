@@ -379,36 +379,23 @@ def format_video_timestamps(text: str, video_url: str) -> str:
         # Format: [text](<url>) - angle brackets suppress Discord embeds
         return f"[{mmss}](<{video_url}&t={seconds}>)"
     
-    # Pattern: [-123s-] or [-1234s-]
-    pattern = r'\[-(\d+)s-\]'
+    # Pattern: [-123s-] or `[-123s-]`
+    # Captures: 1=seconds
+    # Matches optional backticks around the marker
+    pattern = r'`?\[-(\d+)s-\]`?'
     return re.sub(pattern, replace_timestamp, text)
 
 
-def format_external_links(text: str) -> str:
-    """
-    Wrap external URLs with <> to hide Discord embed previews.
-    Skips URLs that are already wrapped, already in markdown format, or are video timestamps.
-    
-    Example: "Check https://example.com for more" -> "Check <https://example.com> for more"
-    """
-    import re
-    
-    # Pattern to find URLs NOT in markdown links [text](url) or already wrapped
-    # Negative lookbehind: not preceded by ]( or <
-    # Negative lookahead: not followed by >
-    url_pattern = r'(?<!\]\()(?<!<)(https?://[^\s\)<>]+)(?!>)'
-    
-    def wrap_url(match):
-        url = match.group(1)
-        return f"<{url}>"
-    
-    return re.sub(url_pattern, wrap_url, text)
+
 
 
 def format_toc_hyperlinks(text: str, video_url: str) -> str:
     """
-    Convert table of contents format [-"TOPIC"- | -SECONDSs-] to clickable hyperlinks.
-    Example: [-"Tổng quan mô hình"- | -504s-] -> [08:24 - Tổng quan mô hình](<video_url&t=504>)
+    Convert table of contents format to clickable hyperlinks.
+    Supports both formats:
+    - [-"TOPIC"- | -SECONDSs-] (with quotes)
+    - [-TOPIC- | -SECONDSs-] (without quotes)
+    Example: [-Giới thiệu nội dung- | -847s-] -> [14:07 - Giới thiệu nội dung](<video_url&t=847>)
     """
     import re
     
@@ -421,14 +408,16 @@ def format_toc_hyperlinks(text: str, video_url: str) -> str:
         return f"{minutes}:{secs:02d}"
     
     def replace_toc_entry(match):
-        topic = match.group(1).strip()
+        topic = match.group(1).strip().strip('"')  # Remove quotes if present
         seconds = int(match.group(2))
         mmss = seconds_to_mmss(seconds)
         # Format: [text](<url>) - angle brackets suppress Discord embeds
         return f"[{mmss} - {topic}](<{video_url}&t={seconds}>)"
     
-    # Pattern: [-"TOPIC"- | -SECONDSs-]
-    pattern = r'\[-"([^"]+)"-\s*\|\s*-(\d+)s-\]'
+    # Pattern: [-TOPIC- | -SECONDSs-] or `[-TOPIC- | -SECONDSs-]`
+    # Captures topic (with or without quotes) and seconds
+    # Matches optional backticks around the marker
+    pattern = r'`?\[-([^-]+)-\s*\|\s*-(\d+)s-\]`?'
     return re.sub(pattern, replace_toc_entry, text)
 
 

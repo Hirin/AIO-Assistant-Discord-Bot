@@ -222,11 +222,11 @@ Hãy trích xuất CHI TIẾT nội dung bài giảng theo cấu trúc:
 ## 💡 Key Takeaways hoặc link references cần thiết
 - Điểm quan trọng nhất cần nhớ
 
-## ❓ Q&A *(nếu có)* - câu hỏi từ học viên (thường giảng viên đọc lại từ chat)
+## ❓ Q&A - câu hỏi từ học viên (thường giảng viên đọc lại từ chat)
 - **Q:** Câu hỏi [-SECONDSs-]
 - **A:** Trả lời
 
-## 📝 Thông tin thêm (out-topic) *(nếu có)*
+## 📝 Thông tin thêm (out-topic)
 - Chia sẻ kinh nghiệm, thông báo, tips từ giảng viên [-SECONDSs-]
 
 ## 📂 Mục lục (Table of Contents) - LUÔN ĐẶT Ở CUỐI CÙNG
@@ -268,16 +268,16 @@ Tiếp tục trích xuất NỘI DUNG MỚI trong phần này:
 ## 💡 Key Takeaways hoặc link references cần thiết bổ sung
 - Điểm quan trọng mới
 
-## ❓ Q&A *(nếu có)*
+## ❓ Q&A 
 - **Q:** Câu hỏi từ học viên [-SECONDSs-]
 - **A:** Trả lời
 
-## 🎯 Quiz *(nếu có - thường ở cuối video)*
+## 🎯 Quiz 
 - **Câu hỏi quiz:** Nội dung câu hỏi [-SECONDSs-]
 - **Đáp án đúng:** [A/B/C/D]
 - **Giải thích:** Tại sao đáp án này đúng/sai
 
-## 📝 Thông tin thêm (out-topic) *(nếu có)*
+## 📝 Thông tin thêm (out-topic) 
 - Chia sẻ kinh nghiệm, thông báo, tips mới từ giảng viên [-SECONDSs-]
 
 ## 📂 Mục lục (Table of Contents) - LUÔN ĐẶT Ở CUỐI CÙNG
@@ -344,19 +344,19 @@ Hãy tổng hợp thành MỘT bài HOÀN CHỈNH, GIỮ NGUYÊN TẤT CẢ thô
 - **Q:** Câu hỏi [-SECONDSs-]
 - **A:** Trả lời
 
-## 🎯 Quiz *(nếu có)*
+## 🎯 Quiz - thường sẽ tầm 5-6 câu hỏi
 - **Câu hỏi quiz:** Nội dung [-SECONDSs-]
 - **Đáp án đúng:** [Xanh/Đỏ/Xanh lá/Vàng]
 - **Giải thích:** Tại sao đáp án này đúng/sai
 
-## 💬 Community Insights *(từ chat session nếu có)*
+## 💬 Community Insights *(từ chat session)*
 - Giải thích hay, ví dụ dễ hiểu từ học viên/TA
 - Ghi credit cho người chia sẻ nếu có tên
 
-## 📝 Thông tin thêm (out-topic) *(nếu có)*
+## 📝 Thông tin thêm (out-topic)
 - Chia sẻ kinh nghiệm, thông báo, tips
 
-## 📚 References *(nếu có links từ chat)*
+## 📚 References *(nếu có links từ chat)* - nhớ luôn để link trong <> để suppress embed
 - **[Mô tả chức năng link]**: <url>
 - Mô tả ngắn gọn link dùng để làm gì dựa trên context chat
 
@@ -385,7 +385,7 @@ PREVIEW_SLIDES_PROMPT = """Đây là tài liệu/slides cho một buổi học. 
 - **Slide marker:** `[-DOC{{N}}:PAGE:{{X}}-]` với N = số thứ tự tài liệu (1,2...), X = số trang
 - Tổng cộng 10-15 slides quan trọng nhất
 - ƯU TIÊN slides có: Diagram, công thức, bảng so sánh, code demo, hình minh họa
-- **References**: Nếu có links, thêm section "📚 References" mô tả chức năng mỗi link
+- **References**: Nếu có links, thêm section "📚 References" mô tả chức năng mỗi link - nhớ luôn để link trong <> để suppress embed
 
 **Output format:**
 
@@ -484,11 +484,16 @@ QUY TẮC MATCHING:
 
 8. **Không có slide phù hợp hoặc slide không rõ ràng → KHÔNG chèn**
 
-9. **REFERENCES (nếu có links từ PDF)**: THÊM section "## 📚 References" TRƯỚC Mục lục với:
-   - Mô tả chức năng của mỗi link dựa trên nội dung slide page tương ứng
-   - Format: **[Mô tả]**: <url>
+9. **REFERENCES (nếu có links từ PDF)**: 
+   ⚠️ VỊ TRÍ: PHẢI đặt ở CUỐI BÀI, NGAY TRƯỚC section "Mục lục" (Table of Contents)
+   ❌ SAI: Đặt References ở đầu bài
+   ✅ ĐÚNG: Đặt References ở cuối, ngay trước Mục lục
+   
+   Format section:
+   ## 📚 References
+   - **[Mô tả chức năng link]**: <url>
 
-OUTPUT: Bản tóm tắt GIỮ NGUYÊN 100% nội dung gốc (kể cả timestamps), chỉ THÊM markers và References section.
+OUTPUT: Bản tóm tắt GIỮ NGUYÊN 100% nội dung gốc (kể cả timestamps), chỉ THÊM markers và References section (trước Mục lục).
 
 ---
 

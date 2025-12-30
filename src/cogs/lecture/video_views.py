@@ -604,6 +604,58 @@ class AssemblyAIApiKeyModal(discord.ui.Modal, title="Đổi AssemblyAI API Key")
         )
 
 
+class FeedbackView(discord.ui.View):
+    """View for user to rate/delete the generated summary."""
+    def __init__(self, message_ids: list[int], user_id: int):
+        super().__init__(timeout=300)  # 5 minutes timeout
+        self.message_ids = message_ids
+        self.user_id = user_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Chỉ người yêu cầu mới được thao tác!", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Hài lòng (Giữ kết quả)", style=discord.ButtonStyle.green, emoji="✅")
+    async def satisfied(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="✅ **Cảm ơn phản hồi của bạn!**", view=self)
+        self.stop()
+
+    @discord.ui.button(label="Xóa kết quả", style=discord.ButtonStyle.red, emoji="🗑️")
+    async def delete_result(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Acknowledge first to avoid interaction failed
+        await interaction.response.defer()
+        
+        # Delete summary messages
+        channel = interaction.channel
+        deleted_count = 0
+        
+        for msg_id in self.message_ids:
+            try:
+                # Try to fetch and delete (or delete directly if we had the object, but IDs are safer to pass around)
+                # Helper sends msg objects, we can store objects or IDs. 
+                # discord_utils returns objects. We will store objects or IDs. 
+                # IDs are safer if object is stale, but object.delete() is easier.
+                # Let's assume we store IDs or PartialMessage.
+                msg = channel.get_partial_message(msg_id)
+                await msg.delete()
+                deleted_count += 1
+            except Exception:
+                pass
+        
+        # Delete the feedback message itself
+        try:
+            await interaction.message.delete()
+        except Exception:
+            pass
+            
+        # Optional: Send ephemeral confirmation
+        # await interaction.followup.send(f"Đã xóa {deleted_count} tin nhắn kết quả.", ephemeral=True)
+        self.stop()
+
 class VideoLectureProcessor:
     """Handles the full video processing pipeline"""
     
@@ -851,7 +903,7 @@ class VideoLectureProcessor:
                     await video_download.download_video(self.slides_url, self.pdf_path)
                     self.temp_files.append(self.pdf_path)
                 
-                self.slide_images = slides_service.pdf_to_images(self.pdf_path)
+                self.slide_images = await slides_service.pdf_to_images_async(self.pdf_path)
                 logger.info(f"Converted {len(self.slide_images)} slide pages")
                 
                 lecture_cache.save_stage(self.cache_id, "slides", {
@@ -1125,10 +1177,13 @@ class VideoLectureProcessor:
                         logger.warning(f"Slide matching failed: {e}, using summary without slides")
             
             # Post-process: Format timestamps (no need to wrap URLs - model already does it)
-            # 1. Format TOC entries: [-"TOPIC"- | -SECONDS-] -> [MM:SS - TOPIC](url)
+            # 1. Format TOC entries: [-TOPIC- | -SECONDS-] -> [MM:SS - TOPIC](url)
             final_summary = gemini.format_toc_hyperlinks(final_summary, self.youtube_url)
             # 2. Format inline timestamps: [-SECONDSs-] -> [[MM:SS]](url)
             final_summary = gemini.format_video_timestamps(final_summary, self.youtube_url)
+            # 3. Remove [Chat: ...] markers that may appear in LLM output
+            import re
+            final_summary = re.sub(r',?\s*\[Chat:\s*[\d:]+\]', '', final_summary)
             
             # STAGE 5: Send to channel with slides
             # =============================================
@@ -1140,11 +1195,13 @@ class VideoLectureProcessor:
             header = f"🎓 **{self.title}**\n🔗 <{self.youtube_url}>\n\n"
             
             # Helper to send LaTeX images embedded in text
-            async def send_with_latex_images(channel, text: str, latex_imgs: list):
+            async def send_with_latex_images(channel, text: str, latex_imgs: list) -> list[discord.Message]:
                 """Send text with embedded LaTeX images"""
+                msgs_sent = []
                 if not latex_imgs:
-                    await send_chunked(channel, text)
-                    return
+                    m = await send_chunked(channel, text)
+                    msgs_sent.extend(m)
+                    return msgs_sent
                 
                 # Split text by LaTeX placeholders and send with images
                 remaining_text = text
@@ -1152,12 +1209,14 @@ class VideoLectureProcessor:
                     if placeholder in remaining_text:
                         parts = remaining_text.split(placeholder, 1)
                         if parts[0].strip():
-                            await send_chunked(channel, parts[0])
+                            m = await send_chunked(channel, parts[0])
+                            msgs_sent.extend(m)
                         
                         # Send the LaTeX image
                         try:
                             file = discord.File(img_path, filename="formula.png")
-                            await channel.send(file=file)
+                            m = await channel.send(file=file)
+                            msgs_sent.append(m)
                             await asyncio.sleep(0.3)
                         except Exception as e:
                             logger.warning(f"Failed to send LaTeX image: {e}")
@@ -1165,7 +1224,8 @@ class VideoLectureProcessor:
                         remaining_text = parts[1] if len(parts) > 1 else ""
                 
                 if remaining_text.strip():
-                    await send_chunked(channel, remaining_text)
+                    m = await send_chunked(channel, remaining_text)
+                    msgs_sent.extend(m)
                 
                 # Cleanup LaTeX images
                 for _, img_path in latex_imgs:
@@ -1174,8 +1234,11 @@ class VideoLectureProcessor:
                             os.remove(img_path)
                     except Exception:
                         pass
+                return msgs_sent
             
             # Check if we have slides to embed
+            messages_to_track = []
+            
             if self.slide_images:
                 # Parse pages and send with slide images
                 from utils.discord_utils import send_chunked_with_pages
@@ -1185,12 +1248,14 @@ class VideoLectureProcessor:
                 logger.info(f"Parsed {len(parsed_parts)} parts, has_pages={has_pages}")
                 
                 if has_pages:
-                    await send_chunked_with_pages(
+                    msgs = await send_chunked_with_pages(
                         self.interaction.channel, parsed_parts, self.slide_images, latex_images
                     )
+                    messages_to_track.extend(msgs)
                 else:
                     # No page markers, send text only (with LaTeX images if any)
-                    await send_with_latex_images(self.interaction.channel, header + final_summary, latex_images)
+                    msgs = await send_with_latex_images(self.interaction.channel, header + final_summary, latex_images)
+                    messages_to_track.extend(msgs)
                 
                 # Cleanup slide images
                 slides_service.cleanup_slide_images(self.slide_images)
@@ -1204,15 +1269,32 @@ class VideoLectureProcessor:
                 
                 if has_frames and self.video_path and os.path.exists(self.video_path):
                     from utils.discord_utils import send_chunked_with_frames
-                    frame_paths = await send_chunked_with_frames(
+                    frame_paths, msgs = await send_chunked_with_frames(
                         self.interaction.channel, parsed_parts, self.video_path
                     )
+                    messages_to_track.extend(msgs)
                     cleanup_files(frame_paths)
                 else:
                     # Send with LaTeX images if any
-                    await send_with_latex_images(self.interaction.channel, header + final_summary, latex_images)
+                    msgs = await send_with_latex_images(self.interaction.channel, header + final_summary, latex_images)
+                    messages_to_track.extend(msgs)
+            
+            # STAGE 6: Send Feedback View
             # =============================================
-            # STAGE 6: Send slides footer/attachment
+            if messages_to_track:
+                try:
+                    # Collect IDs
+                    msg_ids = [m.id for m in messages_to_track]
+                    view = FeedbackView(message_ids=msg_ids, user_id=self.user_id)
+                    await self.interaction.channel.send(
+                        "**Bạn có hài lòng với kết quả này?**", 
+                        view=view
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send feedback view: {e}")
+            
+            # =============================================
+            # STAGE 7: Send slides footer/attachment
             # =============================================
             if self.slides_source == "drive" and self.slides_original_path:
                 # Drive link - append footer with link

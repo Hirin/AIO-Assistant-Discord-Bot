@@ -4,11 +4,16 @@ Slides Service
 Convert PDF slides to images for embedding in Discord.
 """
 
+import asyncio
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Thread pool for CPU-intensive PDF operations
+_executor = ThreadPoolExecutor(max_workers=2)
 
 
 class SlidesError(Exception):
@@ -106,6 +111,16 @@ def pdf_to_images(pdf_path: str, output_dir: str = "/tmp") -> list[str]:
     except Exception as e:
         logger.error(f"Failed to convert PDF: {e}")
         raise SlidesError(f"Không thể convert PDF: {e}")
+
+
+async def pdf_to_images_async(pdf_path: str, output_dir: str = "/tmp") -> list[str]:
+    """
+    Async wrapper for pdf_to_images - runs in thread pool to avoid blocking event loop.
+    
+    This prevents Discord heartbeat blocked warnings when processing large PDFs.
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_executor, pdf_to_images, pdf_path, output_dir)
 
 
 def get_page_image(image_paths: list[str], page_num: int) -> str | None:
