@@ -16,10 +16,10 @@ MEETING_SUMMARY_PROMPT = """Bạn là trợ lý tóm tắt cuộc họp chuyên 
 Transcript có format [seconds] Speaker: Content. (VD: [117s] Tên: Nội dung)
 
 **Lưu ý quan trọng:**
-- Trích dẫn: dùng format `[-seconds-]` (VD: [-117s-])
+- Trích dẫn: dùng format [-seconds-] (VD: [-117s-])
 - **BỎ QUA hoàn toàn** section có tag *(Optional)* nếu không có thông tin → KHÔNG hiển thị section đó, KHÔNG viết "Không có thông tin"
 - Ưu tiên thông tin actionable, cụ thể.
-- **Format links:** Dùng markdown `[Tên hiển thị](<url>)` để ngắn gọn và tránh embed preview. VD: `[Google Docs](<https://docs.google.com/...>)`
+- **Format links:** Dùng markdown [Tên hiển thị](<url>) để ngắn gọn và tránh embed preview. VD: [Google Docs](<https://docs.google.com/...>)
 
 Hãy tóm tắt cuộc họp theo cấu trúc sau:
 
@@ -102,7 +102,7 @@ Transcript có format [seconds] Speaker: Content. (VD: [117s] Tên: Nội dung)
 - **Speaker thứ cấp** (đặt câu hỏi) = **Học viên** (hiếm khi do thường là giảng viên đọc lại chat)
 
 **Lưu ý quan trọng:**
-- Trích dẫn: dùng format `[-seconds-]` (VD: [-117s-])
+- Trích dẫn: dùng format [-seconds-] (VD: [-117s-])
 - **BỎ QUA hoàn toàn** section có tag *(Optional)* nếu không có thông tin → KHÔNG hiển thị section đó, KHÔNG viết "Không có thông tin"
 - Tập trung vào nội dung kiến thức, ví dụ, và key takeaways
 - Ghi rõ ai nói gì (Giảng viên/Trợ giảng/Học viên) khi cần thiết
@@ -203,7 +203,7 @@ GEMINI_LECTURE_PROMPT_PART1 = """Bạn là trợ lý trích xuất nội dung b�
 {transcript_segment}
 
 **Lưu ý quan trọng:**
-- Timestamps dùng format `[-SECONDSs-]` với SECONDS là số giây (VD: [-330s-] cho 5:30, [-5025s-] cho 1:23:45)
+- Timestamps dùng format [-SECONDSs-] với SECONDS là số giây (VD: [-330s-] cho 5:30, [-5025s-] cho 1:23:45)
 - **BỎ QUA hoàn toàn** section không có thông tin
 - Tập trung vào nội dung VIDEO kết hợp với transcript để chính xác hơn
 
@@ -252,7 +252,7 @@ GEMINI_LECTURE_PROMPT_PART_N = """Bạn là trợ lý trích xuất nội dung b
 ---
 
 **Lưu ý quan trọng:**
-- Timestamps dùng format `[-SECONDSs-]` với SECONDS là số giây thực của video gốc
+- Timestamps dùng format [-SECONDSs-] với SECONDS là số giây thực của video gốc
 - **BỎ QUA** section không có thông tin
 - **KHÔNG lặp lại** nội dung đã có trong phần trước
 - Tập trung vào nội dung VIDEO kết hợp với transcript để chính xác hơn
@@ -295,10 +295,11 @@ GEMINI_MERGE_PROMPT = """
 2. Chỉ **GỘP nội dung trùng lặp** giữa các parts
 3. **TỔNG HỢP = Part1 + PartN + Chat Session** (thêm info, không bớt)
 4. Viết CHI TIẾT để học viên ôn lại mà không cần xem video
+5. Công thức quan trọng thì viết giữa $$ formular $$ thay vì $ formular $ để render rõ ràng
 
 **Quy tắc format:**
-- Timestamps: `[-SECONDSs-]` (VD: [-930s-] cho 15:30)
-- Mục lục: `[-"TÊN SECTION"- | -SECONDSs-]`
+- Timestamps: [-SECONDSs-] (VD: [-930s-] cho 15:30)
+- Mục lục: [-"TÊN SECTION"- | -SECONDSs-]
 
 **TRANSCRIPT (tham khảo timestamps):**
 {full_transcript}
@@ -382,7 +383,7 @@ PREVIEW_SLIDES_PROMPT = """Đây là tài liệu/slides cho một buổi học. 
 **Quy tắc quan trọng:**
 - **Tổng hợp theo chủ đề**: Gộp nội dung liên quan từ nhiều tài liệu, KHÔNG tách theo từng file
 - **Mỗi nội dung quan trọng PHẢI có ít nhất 1 slide minh họa**
-- **Slide marker:** `[-DOC{{N}}:PAGE:{{X}}-]` với N = số thứ tự tài liệu (1,2...), X = số trang
+- **Slide marker:** [-DOC{{N}}:PAGE:{{X}}-] với N = số thứ tự tài liệu (1,2...), X = số trang
 - Tổng cộng 10-15 slides quan trọng nhất
 - ƯU TIÊN slides có: Diagram, công thức, bảng so sánh, code demo, hình minh họa
 - **References**: Nếu có links, thêm section "📚 References" mô tả chức năng mỗi link - nhớ luôn để link trong <> để suppress embed
@@ -486,9 +487,6 @@ QUY TẮC MATCHING:
 
 9. **REFERENCES (nếu có links từ PDF)**: 
    ⚠️ VỊ TRÍ: PHẢI đặt ở CUỐI BÀI, NGAY TRƯỚC section "Mục lục" (Table of Contents)
-   ❌ SAI: Đặt References ở đầu bài
-   ✅ ĐÚNG: Đặt References ở cuối, ngay trước Mục lục
-   
    Format section:
    ## 📚 References
    - **[Mô tả chức năng link]**: <url>

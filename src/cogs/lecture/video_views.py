@@ -619,6 +619,7 @@ class FeedbackView(discord.ui.View):
 
     @discord.ui.button(label="Hài lòng (Giữ kết quả)", style=discord.ButtonStyle.green, emoji="✅")
     async def satisfied(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"FEEDBACK_SATISFIED: User {interaction.user.id} Guild {interaction.guild_id}")
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(content="✅ **Cảm ơn phản hồi của bạn!**", view=self)
@@ -628,23 +629,33 @@ class FeedbackView(discord.ui.View):
     async def delete_result(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Acknowledge first to avoid interaction failed
         await interaction.response.defer()
+        logger.info(f"FEEDBACK_DELETE: User {interaction.user.id} Guild {interaction.guild_id}")
         
         # Delete summary messages
         channel = interaction.channel
-        deleted_count = 0
         
-        for msg_id in self.message_ids:
+        # Optimize deletion: Use bulk delete (purge) if possible, else concurrent delete
+        target_ids = set(self.message_ids)
+        
+        if isinstance(channel, (discord.TextChannel, discord.Thread)):
+            # Bulk delete via purge (fastest for recent messages)
+            # Limit=100 is usually enough for a session.
             try:
-                # Try to fetch and delete (or delete directly if we had the object, but IDs are safer to pass around)
-                # Helper sends msg objects, we can store objects or IDs. 
-                # discord_utils returns objects. We will store objects or IDs. 
-                # IDs are safer if object is stale, but object.delete() is easier.
-                # Let's assume we store IDs or PartialMessage.
-                msg = channel.get_partial_message(msg_id)
-                await msg.delete()
-                deleted_count += 1
-            except Exception:
-                pass
+                deleted = await channel.purge(
+                    limit=100, 
+                    check=lambda m: m.id in target_ids,
+                    bulk=True
+                )
+                logger.info(f"Bulk deleted {len(deleted)} messages via purge")
+            except Exception as e:
+                logger.warning(f"Purge failed, falling back to concurrent delete: {e}")
+                # Fallback to concurrent delete
+                tasks = [channel.get_partial_message(mid).delete() for mid in self.message_ids]
+                await asyncio.gather(*tasks, return_exceptions=True)
+        else:
+            # DM or other context: Concurrent delete
+            tasks = [channel.get_partial_message(mid).delete() for mid in self.message_ids]
+            await asyncio.gather(*tasks, return_exceptions=True)
         
         # Delete the feedback message itself
         try:
@@ -652,8 +663,6 @@ class FeedbackView(discord.ui.View):
         except Exception:
             pass
             
-        # Optional: Send ephemeral confirmation
-        # await interaction.followup.send(f"Đã xóa {deleted_count} tin nhắn kết quả.", ephemeral=True)
         self.stop()
 
 class VideoLectureProcessor:
@@ -1286,9 +1295,11 @@ class VideoLectureProcessor:
                     # Collect IDs
                     msg_ids = [m.id for m in messages_to_track]
                     view = FeedbackView(message_ids=msg_ids, user_id=self.user_id)
-                    await self.interaction.channel.send(
+                    # Send ephemeral so only requester sees the buttons
+                    await self.interaction.followup.send(
                         "**Bạn có hài lòng với kết quả này?**", 
-                        view=view
+                        view=view,
+                        ephemeral=True
                     )
                 except Exception as e:
                     logger.warning(f"Failed to send feedback view: {e}")

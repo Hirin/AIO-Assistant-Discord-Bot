@@ -417,7 +417,8 @@ def format_toc_hyperlinks(text: str, video_url: str) -> str:
     # Pattern: [-TOPIC- | -SECONDSs-] or `[-TOPIC- | -SECONDSs-]`
     # Captures topic (with or without quotes) and seconds
     # Matches optional backticks around the marker
-    pattern = r'`?\[-([^-]+)-\s*\|\s*-(\d+)s-\]`?'
+    # Using (.*?) non-greedy to handle topics with hyphens like "LeNet-5"
+    pattern = r'`?\[-(.*?)-\s*\|\s*-(\d+)s-\]`?'
     return re.sub(pattern, replace_toc_entry, text)
 
 

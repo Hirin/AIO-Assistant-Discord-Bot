@@ -178,6 +178,7 @@ def cleanup_slide_images(image_paths: list[str]):
 def extract_links_from_pdf(pdf_path: str) -> list[tuple[int, str]]:
     """
     Extract all hyperlinks from a PDF file.
+    Filters out quiz/form links (Kahoot, Google Forms, etc.)
     
     Args:
         pdf_path: Path to PDF file
@@ -185,6 +186,8 @@ def extract_links_from_pdf(pdf_path: str) -> list[tuple[int, str]]:
     Returns:
         List of tuples (page_number, url) with 1-indexed page numbers
     """
+    import re
+    
     try:
         import fitz  # PyMuPDF
     except ImportError:
@@ -195,7 +198,21 @@ def extract_links_from_pdf(pdf_path: str) -> list[tuple[int, str]]:
         logger.warning(f"PDF file not found: {pdf_path}")
         return []
     
+    # Patterns to exclude (quiz, forms, check-in links)
+    exclude_patterns = [
+        r'kahoot\.it',
+        r'kahoot\.com',
+        r'forms\.gle',
+        r'docs\.google\.com/forms',
+        r'bit\.ly',  # Often used for check-in/quiz
+        r'discord\.com',
+        r'discord\.gg',
+    ]
+    exclude_regex = [re.compile(p, re.IGNORECASE) for p in exclude_patterns]
+    
     links = []
+    seen = set()  # Dedupe
+    
     try:
         doc = fitz.open(pdf_path)
         
@@ -203,10 +220,20 @@ def extract_links_from_pdf(pdf_path: str) -> list[tuple[int, str]]:
             for link in page.get_links():
                 uri = link.get("uri")
                 if uri and uri.startswith(("http://", "https://")):
+                    # Skip if already seen
+                    if uri in seen:
+                        continue
+                    
+                    # Skip if matches exclude pattern
+                    if any(regex.search(uri) for regex in exclude_regex):
+                        logger.debug(f"Filtered out quiz/form link: {uri}")
+                        continue
+                    
+                    seen.add(uri)
                     links.append((page_num, uri))
         
         doc.close()
-        logger.info(f"Extracted {len(links)} links from PDF")
+        logger.info(f"Extracted {len(links)} links from PDF (after filtering)")
         
     except Exception as e:
         logger.error(f"Failed to extract links from PDF: {e}")
