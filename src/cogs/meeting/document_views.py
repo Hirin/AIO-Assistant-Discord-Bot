@@ -49,7 +49,7 @@ async def prompt_for_document(
     bot,
     guild_id: int,
     mode: str = "meeting",
-) -> str | None:
+) -> tuple[str | None, str | None]:
     """
     Prompt user for optional document upload and extract slide content.
     
@@ -60,7 +60,8 @@ async def prompt_for_document(
         mode: "meeting" or "lecture" - determines extraction focus
         
     Returns:
-        Extracted slide content text or None
+        Tuple of (extracted_content, pdf_path) - both optional
+        Content is for GLM fallback, path is for Gemini multimodal
     """
     # Get VLM prompt for cache key
     vlm_prompt = LECTURE_VLM_PROMPT if mode == "lecture" else MEETING_VLM_PROMPT
@@ -84,7 +85,7 @@ async def prompt_for_document(
         pass
 
     if not view.wants_doc:
-        return None
+        return None, None
 
     # Wait for file upload
     def check(m):
@@ -103,7 +104,7 @@ async def prompt_for_document(
         is_valid, error = validate_attachment(attachment)
         if not is_valid:
             await interaction.followup.send(f"❌ {error}", ephemeral=True)
-            return None
+            return None, None
         
         # Check cache BEFORE downloading (save bandwidth)
         cached_content = slide_cache.get_cached_slide_content(filename, vlm_prompt)
@@ -118,7 +119,8 @@ async def prompt_for_document(
                 f"✅ Sử dụng cache ({len(cached_content)} chars) ⚡",
                 ephemeral=True
             )
-            return cached_content
+            # No PDF path when using cache
+            return cached_content, None
 
         # Download file - create editable status message
         status_msg = await interaction.followup.send(
@@ -127,6 +129,13 @@ async def prompt_for_document(
             wait=True
         )
         file_bytes = await attachment.read()
+        
+        # Save PDF to temp file for Gemini option
+        import hashlib
+        pdf_hash = hashlib.md5(file_bytes).hexdigest()[:10]
+        pdf_path = f"/tmp/meeting_slides_{pdf_hash}.pdf"
+        with open(pdf_path, 'wb') as f:
+            f.write(file_bytes)
         
         # Delete user's message with attachment immediately after download
         try:
@@ -148,7 +157,7 @@ async def prompt_for_document(
                 await status_msg.edit(content="❌ Không thể đọc PDF")
             except Exception:
                 pass
-            return None
+            return None, None
 
         # Update status for VLM extraction
         try:
@@ -202,7 +211,7 @@ async def prompt_for_document(
                 await status_msg.edit(content=f"❌ VLM Error:\n{slide_content}", view=view)
             except Exception:
                 pass
-            return None  # Return None so summarize proceeds without slides
+            return None, None  # Return None so summarize proceeds without slides
 
         # Save to cache and update status
         if slide_content:
@@ -214,18 +223,18 @@ async def prompt_for_document(
             except Exception:
                 pass
 
-        return slide_content
+        return slide_content, pdf_path
 
     except asyncio.TimeoutError:
         await interaction.followup.send(
             "⏰ Timeout - tiếp tục không có tài liệu",
             ephemeral=True,
         )
-        return None
+        return None, None
     except Exception as e:
         logger.exception("Error processing document")
         await interaction.followup.send(
             f"❌ Lỗi xử lý tài liệu: {str(e)[:50]}",
             ephemeral=True,
         )
-        return None
+        return None, None

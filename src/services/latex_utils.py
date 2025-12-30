@@ -61,13 +61,16 @@ SUPERSCRIPT_MAP = {
 }
 
 SUBSCRIPT_MAP = {
+    # Numbers
     '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
     '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
-    '+': '₊', '-': '₋', '=': '₌',
-    'i': 'ᵢ', 'j': 'ⱼ', 'k': 'ₖ', 'n': 'ₙ', 'm': 'ₘ',
-    'x': 'ₓ', 'a': 'ₐ', 'e': 'ₑ', 'o': 'ₒ', 'r': 'ᵣ',
-    's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ', 'v': 'ᵥ', 'p': 'ₚ',
-    '(': '₍', ')': '₎',
+    # Operators
+    '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
+    # All available Unicode subscript letters (no b,c,d,f,g,q,w,y,z exist)
+    'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ',
+    'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ',
+    'p': 'ₚ', 'r': 'ᵣ', 's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ',
+    'v': 'ᵥ', 'x': 'ₓ',
 }
 
 
@@ -79,11 +82,22 @@ def _convert_single_formula(formula: str) -> str:
     for latex, unicode_char in LATEX_TO_UNICODE.items():
         result = result.replace(latex, unicode_char)
     
-    # Handle \frac{a}{b} -> a/b
-    result = re.sub(r'\\frac\{([^}]*)\}\{([^}]*)\}', r'(\1)/(\2)', result)
+    # Handle \frac{a}{b} -> a/b (add parens only if content has operators)
+    def frac_replace(m):
+        num, denom = m.group(1), m.group(2)
+        # Only wrap in parens if content has spaces/operators
+        num_wrap = f"({num})" if len(num) > 1 and any(c in num for c in ' +-*/') else num
+        denom_wrap = f"({denom})" if len(denom) > 1 and any(c in denom for c in ' +-*/') else denom
+        return f"{num_wrap}/{denom_wrap}"
+    result = re.sub(r'\\frac\{([^}]*)\}\{([^}]*)\}', frac_replace, result)
     
-    # Handle \sqrt{x} -> √(x)
-    result = re.sub(r'√\{([^}]*)\}', r'√(\1)', result)
+    # Handle \sqrt{x} -> √x (add parens only if content has multiple chars with operators)
+    def sqrt_replace(m):
+        content = m.group(1)
+        if len(content) > 1 and any(c in content for c in ' +-*/'):
+            return f"√({content})"
+        return f"√{content}"
+    result = re.sub(r'√\{([^}]*)\}', sqrt_replace, result)
     
     # Handle \text{...} -> just the text
     result = re.sub(r'\\text\{([^}]*)\}', r'\1', result)
@@ -104,7 +118,8 @@ def _convert_single_formula(formula: str) -> str:
         content = m.group(1)
         return ''.join(SUBSCRIPT_MAP.get(c, f'_{c}') for c in content)
     result = re.sub(r'_\{([^}]*)\}', sub_replace, result)
-    result = re.sub(r'_([0-9ijk])', lambda m: SUBSCRIPT_MAP.get(m.group(1), f'_{m.group(1)}'), result)
+    # Match single-char subscripts (numbers and all lowercase letters)
+    result = re.sub(r'_([0-9a-z])', lambda m: SUBSCRIPT_MAP.get(m.group(1), f'_{m.group(1)}'), result)
     
     # Clean up remaining braces
     result = result.replace('{', '').replace('}', '')

@@ -215,12 +215,15 @@ Hãy trích xuất CHI TIẾT nội dung bài giảng theo cấu trúc:
 ## 📊 Ví dụ minh họa
 - **[Ví dụ]:** Mô tả case study/code/tính toán [-SECONDSs-]
 
-## 💡 Key Takeaways
+## 💡 Key Takeaways hoặc link references cần thiết
 - Điểm quan trọng nhất cần nhớ
 
-## ❓ Q&A *(nếu có)* - thường sẽ được giảng viên đọc lại
+## ❓ Q&A *(nếu có)* - thường sẽ được giảng viên đọc lại, hoặc Quiz (nếu từ Quiz thì explain kết quả đáp án thêm)
 - **Q:** Câu hỏi [-SECONDSs-]
   - **A:** Trả lời
+
+## 📝 Thông tin thêm (out-topic) *(nếu có)*
+- Chia sẻ kinh nghiệm, thông báo, tips từ giảng viên [-SECONDSs-]
 
 ## 📂 Mục lục (Table of Contents) - LUÔN ĐẶT Ở CUỐI CÙNG
 ⚠️ **Mục lục PHẢI là phần cuối cùng, không được đưa lên trên.**
@@ -258,12 +261,15 @@ Tiếp tục trích xuất NỘI DUNG MỚI trong phần này:
 ## 📊 Ví dụ mới
 - **[Ví dụ]:** Mô tả [-SECONDSs-]
 
-## 💡 Key Takeaways bổ sung
+## 💡 Key Takeaways hoặc link references cần thiết bổ sung
 - Điểm quan trọng mới
 
-## ❓ Q&A mới *(nếu có)* - thường sẽ được giảng viên đọc lại
-- **Q:** Câu hỏi [-SECONDSs-]
-  - **A:** Trả lời
+## ❓ Q&A / Quiz - thường sẽ được giảng viên đọc lại
+- **Q:** Câu hỏi từ học viên hoặc câu hỏi quiz? [-SECONDSs-]
+- **A:** Trả lời chi tiết (nếu quiz thì giải thích tại sao đáp án đúng/sai)
+
+## 📝 Thông tin thêm (out-topic) *(nếu có)*
+- Chia sẻ kinh nghiệm, thông báo, tips mới từ giảng viên [-SECONDSs-]
 
 ## 📂 Mục lục (Table of Contents) - LUÔN ĐẶT Ở CUỐI CÙNG
 ⚠️ **Mục lục PHẢI là phần cuối cùng, không được đưa lên trên.**
@@ -287,6 +293,10 @@ GEMINI_MERGE_PROMPT = """
 **TRANSCRIPT ĐẦY ĐỦ (tham khảo timestamps):**
 {full_transcript}
 
+---
+Thông tin thêm (Chat session, requests,...):
+
+{extra_context}
 ---
 Dưới đây là tổng hợp từ nhiều phần của một bài giảng dài.
 
@@ -317,14 +327,22 @@ Hãy tổng hợp thành MỘT bài HOÀN CHỈNH và CHI TIẾT:
 [-PAGE:X-]
 - **Ví dụ 2:** ... [-SECONDSs-]
 
-## 💡 Key Takeaways tổng hợp
+## 💡 Key Takeaways hoặc link references tổng hợp - có thể bổ sung từ chat session (nếu có)
 - Điểm quan trọng 1 (giải thích ngắn gọn tại sao quan trọng)
 - Điểm quan trọng 2 ...
 - Common mistakes/pitfalls cần tránh
 
-## ❓ Q&A
-- **Q:** Câu hỏi từ học viên? [-SECONDSs-]
-- **A:** Trả lời chi tiết
+## ❓ Q&A / Quiz - có thể bổ sung từ chat session (nếu có)
+- **Q:** Câu hỏi từ học viên hoặc câu hỏi quiz? [-SECONDSs-]
+- **A:** Trả lời chi tiết (nếu quiz thì giải thích tại sao đáp án đúng/sai)
+
+## 💬 Community Insights *(từ chat session nếu có)*
+- Giải thích hay, ví dụ dễ hiểu từ học viên/TA trong chat
+- Ví dụ: analogies, intuition, tips thực hành từ cộng đồng
+- Ghi credit cho người chia sẻ nếu có tên
+
+## 📝 Thông tin thêm (out-topic) *(nếu có)*
+- Chia sẻ kinh nghiệm, thông báo, tips từ giảng viên/TA
 
 ## 📂 Mục lục (Table of Contents) - LUÔN ĐẶT Ở CUỐI CÙNG
 ⚠️ **QUAN TRỌNG: Mục lục PHẢI là phần cuối cùng của bài tóm tắt. KHÔNG được đưa lên trước các section khác.**

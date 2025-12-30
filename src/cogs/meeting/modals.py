@@ -2,17 +2,53 @@
 Meeting Modals - UI modals for meeting actions
 """
 
+import asyncio
 import logging
+import os
 import re
 from datetime import datetime, timedelta
 
 import discord
 
-from services import fireflies, fireflies_api, gemini, llm, scheduler, transcript_storage
+from services import fireflies, fireflies_api, llm, scheduler, transcript_storage, latex_utils
 from utils.discord_utils import send_chunked
 
 logger = logging.getLogger(__name__)
 
+
+async def _send_with_latex_images(channel, text: str, latex_imgs: list):
+    """Send text with embedded LaTeX images for meeting summaries"""
+    if not latex_imgs:
+        await send_chunked(channel, text)
+        return
+    
+    remaining_text = text
+    for placeholder, img_path in latex_imgs:
+        if placeholder in remaining_text:
+            parts = remaining_text.split(placeholder, 1)
+            if parts[0].strip():
+                await send_chunked(channel, parts[0])
+            
+            # Send the LaTeX image
+            try:
+                file = discord.File(img_path, filename="formula.png")
+                await channel.send(file=file)
+                await asyncio.sleep(0.3)
+            except Exception as e:
+                logger.warning(f"Failed to send LaTeX image: {e}")
+            
+            remaining_text = parts[1] if len(parts) > 1 else ""
+    
+    if remaining_text.strip():
+        await send_chunked(channel, remaining_text)
+    
+    # Cleanup LaTeX images
+    for _, img_path in latex_imgs:
+        try:
+            if os.path.exists(img_path):
+                os.remove(img_path)
+        except Exception:
+            pass
 
 class ModeSelectionView(discord.ui.View):
     """View with buttons to select Meeting or Lecture mode"""
@@ -120,7 +156,7 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
             
             # Prompt for optional document (instant feedback)
             from .document_views import prompt_for_document
-            slide_content = await prompt_for_document(
+            slide_content, pdf_path = await prompt_for_document(
                 interaction, interaction.client, self.guild_id, mode
             )
             
@@ -179,22 +215,66 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
                 )
                 return
 
-            # Generate summary with slide content context
-            # Use seconds format for LLM
+            # Generate summary
             transcript_text = fireflies.format_transcript_for_llm(transcript_data)
-            summary = await llm.summarize_transcript(
-                transcript_text, 
-                guild_id=self.guild_id, 
-                user_id=interaction.user.id,
-                slide_content=slide_content, 
-                mode=mode
-            )
+            
+            # Get user Gemini key for potential usage
+            from services import config as config_service
+            user_gemini_key = config_service.get_user_gemini_api(interaction.user.id)
+            
+            # PRIORITY PATH: Gemini (if user has key)
+            if user_gemini_key:
+                from services import gemini
+                try:
+                    logger.info(f"Using Gemini for meeting summary (user {interaction.user.id}, slides={'yes' if pdf_path else 'no'})")
+                    
+                    # Get meeting summary prompt
+                    system_prompt = config_service.get_prompt(
+                        self.guild_id,
+                        mode=mode,
+                        prompt_type="summary"
+                    )
+                    
+                    summary = await gemini.summarize_meeting(
+                        transcript=transcript_text,
+                        pdf_path=pdf_path,  # Can be None
+                        prompt=system_prompt,
+                        api_key=user_gemini_key,
+                    )
+                except Exception as e:
+                    logger.warning(f"Gemini failed, falling back to GLM: {e}")
+                    # FALLBACK: GLM
+                    summary = await llm.summarize_transcript(
+                        transcript_text, 
+                        guild_id=self.guild_id, 
+                        user_id=interaction.user.id,
+                        slide_content=slide_content, 
+                        mode=mode
+                    )
+            else:
+                # NO GEMINI KEY: Use GLM directly
+                summary = await llm.summarize_transcript(
+                    transcript_text, 
+                    guild_id=self.guild_id, 
+                    user_id=interaction.user.id,
+                    slide_content=slide_content, 
+                    mode=mode
+                )
             
             # Delete processing message
             try:
                 await processing_msg.delete()
             except Exception:
                 pass
+            
+            # Cleanup PDF file if exists
+            if pdf_path:
+                try:
+                    import os
+                    os.remove(pdf_path)
+                    logger.info(f"Cleaned up PDF: {pdf_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup PDF {pdf_path}: {e}")
 
             # Auto save locally - use user title, scraped title, or fallback
             title = (
@@ -249,8 +329,11 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
                             mode=kwargs.get("mode", "meeting")
                         )
                         if new_summary and not new_summary.startswith("⚠️ LLM"):
-                            new_summary = gemini.convert_latex_to_unicode(new_summary)
-                            await send_chunked(retry_interaction.channel, kwargs["header"] + new_summary)
+                            new_summary, latex_imgs = latex_utils.process_latex_formulas(new_summary)
+                            if latex_imgs:
+                                await _send_with_latex_images(retry_interaction.channel, kwargs["header"] + new_summary, latex_imgs)
+                            else:
+                                await send_chunked(retry_interaction.channel, kwargs["header"] + new_summary)
                         else:
                             await retry_interaction.followup.send(
                                 f"{kwargs['header']}\n{new_summary or '⚠️ Retry failed'}",
@@ -284,9 +367,14 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
             
             # Send summary to channel (not reply) to avoid deletion issues
             if summary:
-                # Convert LaTeX formulas to Unicode (Discord doesn't render LaTeX)
-                summary = gemini.convert_latex_to_unicode(summary)
-                await send_chunked(interaction.channel, header + summary)
+                # Process LaTeX formulas: $$...$$ -> image, $...$ -> Unicode
+                summary, latex_images = latex_utils.process_latex_formulas(summary)
+                
+                if latex_images:
+                    # Send with embedded images for block formulas
+                    await _send_with_latex_images(interaction.channel, header + summary, latex_images)
+                else:
+                    await send_chunked(interaction.channel, header + summary)
             else:
                 await interaction.followup.send(
                     f"⚠️ Summary trống - LLM không trả về nội dung\n{header}",
@@ -474,14 +562,20 @@ class ScheduleMeetingModal(discord.ui.Modal, title="Schedule Meeting"):
         )
 
         doc_status = "\n📎 Có tài liệu đính kèm" if glossary else ""
-        await interaction.followup.send(
+        confirm_msg = await interaction.followup.send(
             f"✅ Đã lên lịch!{doc_status}\n"
             f"**ID:** `{entry['id']}`\n"
             f"**Time:** {scheduled_time.strftime('%Y-%m-%d %H:%M')}\n"
             f"**Link:** {self.meeting_link.value[:50]}...\n"
             f"_(Dùng View Scheduled để xem/xóa)_",
-            delete_after=60,
+            wait=True,
         )
+        # Auto-delete after 60s
+        await asyncio.sleep(60)
+        try:
+            await confirm_msg.delete()
+        except Exception:
+            pass
 
 
 class CancelScheduleModal(discord.ui.Modal, title="Cancel Scheduled Meeting"):

@@ -30,6 +30,78 @@ def get_client(api_key: Optional[str] = None):
     return genai.Client(api_key=env_key)
 
 
+# Default model and thinking level for all Gemini calls
+DEFAULT_MODEL = "gemini-3-flash-preview"
+DEFAULT_THINKING = "high"
+
+
+def _call_gemini_sync(
+    client,
+    contents: list,
+    thinking_level: str = DEFAULT_THINKING,
+    model: str = DEFAULT_MODEL,
+) -> str:
+    """
+    Base helper for Gemini API calls.
+    All Gemini generate_content calls should use this for consistency.
+    
+    Args:
+        client: Gemini client instance
+        contents: Content parts (video, text, images, etc.)
+        thinking_level: minimal/low/medium/high (default: high)
+        model: Model name (default: gemini-3-flash-preview)
+    
+    Returns:
+        Response text
+    """
+    from google.genai import types
+    
+    start = time.time()
+    response = client.models.generate_content(
+        model=model,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(thinking_level=thinking_level)
+        ),
+    )
+    logger.info(f"Gemini call completed in {time.time()-start:.1f}s, {len(response.text)} chars")
+    return response.text
+
+
+async def _call_gemini(
+    client,
+    contents: list,
+    thinking_level: str = DEFAULT_THINKING,
+    model: str = DEFAULT_MODEL,
+) -> str:
+    """Async wrapper for _call_gemini_sync - runs in thread pool."""
+    return await asyncio.to_thread(
+        _call_gemini_sync, client, contents, thinking_level, model
+    )
+
+
+async def test_api(api_key: str) -> str:
+    """
+    Quick test if API key works.
+    Uses minimal thinking for fast response.
+    
+    Args:
+        api_key: Gemini API key to test
+    
+    Returns:
+        Response text (should be short)
+    
+    Raises:
+        Exception on API failure
+    """
+    client = get_client(api_key)
+    return await _call_gemini(
+        client,
+        contents=["Say 'API OK' in 2 words"],
+        thinking_level="minimal",
+    )
+
+
 async def upload_video(video_path: str, api_key: Optional[str] = None):
     """Upload video to Gemini Files API and wait for processing"""
     client = get_client(api_key)
@@ -61,27 +133,10 @@ async def generate_lecture_summary(
     api_key: Optional[str] = None,
 ) -> str:
     """Generate lecture summary from video with thinking mode"""
-    from google.genai import types
-    
     client = get_client(api_key)
     
     logger.info("Generating lecture summary...")
-    start = time.time()
-    
-    # Run sync Gemini call in thread pool to avoid blocking event loop
-    def _generate():
-        return client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=[video_file, prompt],
-            config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(thinking_level="high")
-            ),
-        )
-    
-    response = await asyncio.to_thread(_generate)
-    
-    logger.info(f"Generated in {time.time()-start:.1f}s, {len(response.text)} chars")
-    return response.text
+    return await _call_gemini(client, [video_file, prompt])
 
 
 async def merge_summaries(
@@ -89,9 +144,10 @@ async def merge_summaries(
     merge_prompt: str,
     slide_count: int = 0,
     full_transcript: str = "",
+    extra_context: str = "",
     api_key: Optional[str] = None,
 ) -> str:
-    """Merge multiple part summaries into one, with slides and transcript context"""
+    """Merge multiple part summaries into one, with slides, transcript, and extra context"""
     from google.genai import types
     
     client = get_client(api_key)
@@ -118,31 +174,121 @@ async def merge_summaries(
     else:
         slide_instructions = "(Không có slide - KHÔNG tạo [-PAGE:X-] markers)"
     
+    # Format extra context section
+    extra_context_section = ""
+    if extra_context and extra_context.strip():
+        extra_context_section = f"\n\n**THÔNG TIN BỔ SUNG TỪ USER:**\n{extra_context}\n"
+    
     # Build prompt
     full_prompt = merge_prompt.format(
         parts_summary=parts_text,
         slide_count=slide_count,
         slide_instructions=slide_instructions,
         full_transcript=full_transcript if full_transcript else "(Không có transcript)",
+        extra_context=extra_context_section,
     )
     
-    logger.info(f"Merging {len(summaries)} summaries (slides={slide_count}, transcript={len(full_transcript)} chars)...")
+    logger.info(f"Merging {len(summaries)} summaries (slides={slide_count}, transcript={len(full_transcript)} chars, extra_context={len(extra_context)} chars)...")
+    
+    return await _call_gemini(client, full_prompt)
+
+
+async def summarize_meeting(
+    transcript: str,
+    pdf_path: str | None = None,
+    prompt: str = "",
+    api_key: str | None = None,
+    retries: int = 3,
+) -> str:
+    """
+    Unified meeting summary with Gemini multimodal.
+    Handles both slides (PDF) and transcript in one call.
+    
+    Args:
+        transcript: Meeting transcript text
+        pdf_path: Optional path to PDF slides file
+        prompt: Summary prompt
+        api_key: Gemini API key
+        retries: Number of retry attempts
+        
+    Returns:
+        Meeting summary
+    """
+    from google.genai import types
+    
+    client = get_client(api_key)
+    
+    logger.info(f"Generating meeting summary (Gemini multimodal, slides={'yes' if pdf_path else 'no'})...")
+    
+    # Upload PDF if provided
+    pdf_file = None
+    if pdf_path:
+        logger.info(f"Uploading PDF: {pdf_path}")
+        start_upload = time.time()
+        pdf_file = client.files.upload(file=pdf_path)
+        logger.info(f"PDF uploaded in {time.time()-start_upload:.1f}s, name={pdf_file.name}")
+        
+        # Wait for processing
+        while pdf_file.state.name == "PROCESSING":
+            await asyncio.sleep(5)
+            pdf_file = client.files.get(name=pdf_file.name)
+            logger.info(f"  PDF state: {pdf_file.state.name}")
+        
+        if pdf_file.state.name == "FAILED":
+            raise ValueError(f"PDF processing failed: {pdf_path}")
+    
+    # Build content
+    content = []
+    if pdf_file:
+        content.append(pdf_file)
+    content.append(f"{prompt}\n\n**TRANSCRIPT:**\n{transcript}")
+    
     start = time.time()
     
-    # Run sync Gemini call in thread pool to avoid blocking event loop
-    def _merge():
+    def _generate():
         return client.models.generate_content(
             model="gemini-3-flash-preview",
-            contents=full_prompt,
+            contents=content,
             config=types.GenerateContentConfig(
                 thinking_config=types.ThinkingConfig(thinking_level="high")
             ),
         )
     
-    response = await asyncio.to_thread(_merge)
+    # Retry loop
+    last_error = None
+    for attempt in range(retries):
+        try:
+            response = await asyncio.to_thread(_generate)
+            summary = response.text
+            
+            logger.info(f"Meeting summary generated in {time.time()-start:.1f}s ({len(summary)} chars)")
+            
+            # Cleanup PDF file
+            if pdf_file:
+                try:
+                    client.files.delete(name=pdf_file.name)
+                    logger.info(f"Deleted PDF file: {pdf_file.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete PDF: {e}")
+            
+            return summary
+            
+        except Exception as e:
+            last_error = str(e)
+            logger.error(f"Meeting summary attempt {attempt + 1} failed: {e}")
+            if attempt < retries - 1:
+                backoff = 5 * (attempt + 1)
+                logger.info(f"Retrying in {backoff}s...")
+                await asyncio.sleep(backoff)
     
-    logger.info(f"Merged in {time.time()-start:.1f}s")
-    return response.text
+    # Cleanup on failure
+    if pdf_file:
+        try:
+            client.files.delete(name=pdf_file.name)
+        except Exception:
+            pass
+    
+    raise Exception(f"Meeting summary failed after {retries} attempts: {last_error}")
 
 
 async def summarize_transcript(
@@ -242,6 +388,27 @@ def format_video_timestamps(text: str, video_url: str) -> str:
     # Pattern: [-123s-] or [-1234s-]
     pattern = r'\[-(\d+)s-\]'
     return re.sub(pattern, replace_timestamp, text)
+
+
+def format_external_links(text: str) -> str:
+    """
+    Wrap external URLs with <> to hide Discord embed previews.
+    Skips URLs that are already wrapped, already in markdown format, or are video timestamps.
+    
+    Example: "Check https://example.com for more" -> "Check <https://example.com> for more"
+    """
+    import re
+    
+    # Pattern to find URLs NOT in markdown links [text](url) or already wrapped
+    # Negative lookbehind: not preceded by (< or ](
+    # Negative lookahead: not followed by )> or just >
+    url_pattern = r'(?<![\(<])(?<!\]\()(?<!<)(https?://[^\s\)<>]+)(?![>\)])'
+    
+    def wrap_url(match):
+        url = match.group(1)
+        return f"<{url}>"
+    
+    return re.sub(url_pattern, wrap_url, text)
 
 
 def format_toc_hyperlinks(text: str, video_url: str) -> str:
@@ -369,14 +536,6 @@ def strip_page_markers(text: str) -> str:
     pattern = r'\[-PAGE:\d+(?::"[^"]+")?\-?\]\s*(?:\([^)]*\))?'
     return re.sub(pattern, '', text)
 
-
-# Re-export LaTeX utilities from dedicated module for backward compatibility
-from services.latex_utils import (  # noqa: E402, F401
-    convert_latex_to_unicode,
-    render_latex_to_image,
-    process_latex_formulas,
-    cleanup_latex_images,
-)
 
 
 def cleanup_file(file, api_key: Optional[str] = None) -> None:

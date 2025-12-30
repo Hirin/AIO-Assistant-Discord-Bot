@@ -296,7 +296,7 @@ class PreviewProcessor:
                     pdf_paths=pdf_files,
                     prompt=prompts.PREVIEW_SLIDES_PROMPT,
                     api_key=user_gemini_key,
-                    thinking_level="medium",
+                    thinking_level="high",
                 )
             
             async def convert_pdfs():

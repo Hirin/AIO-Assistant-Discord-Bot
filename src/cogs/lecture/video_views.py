@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Optional
 
-from services import gemini, video_download, video, lecture_cache, prompts
+from services import gemini, video_download, video, lecture_cache, prompts, latex_utils
 from services.video import format_timestamp, cleanup_files
 from services.slides import SlidesError
 from utils.discord_utils import send_chunked
@@ -77,6 +77,78 @@ class LectureSourceView(discord.ui.View):
         await interaction.response.edit_message(content="✅ Đã đóng", embed=None, view=None)
 
 
+def preprocess_chat_session(raw_text: str) -> str:
+    """
+    Filter junk from chat session text.
+    Keeps valuable Q&A, explanations, links, and insights.
+    Removes: short acks, simple numbers, emoji reactions, thank you messages.
+    """
+    import re
+    
+    # Patterns for junk messages (case insensitive)
+    junk_patterns = [
+        # Simple acknowledgements
+        r'^(dạ|da|ok[eê]?|oke|vâng|rõ|hiểu|được|dc|đc|ổn|xong|done|yes|no|ko|không|k)\s*(ạ|a|nhé|nha|rồi|r)?\.?$',
+        # Just numbers (quiz answers)
+        r'^[1-9]\.?$',
+        # Simple short answers
+        r'^(khác|giống|có|ko|không|đúng|sai|đồng ý|agree|same|diff)\s*(ạ|a|nhé)?\.?$',
+        # Pure emoji reactions (but keep text with emoji)
+        r'^[\U0001F300-\U0001F9FF\u2600-\u26FF\u2700-\u27BF\s]+$',
+        # Short thank you at end
+        r'^(cảm ơn|cám ơn|thanks|thank|bye|chào)\s*(ad|admin|thầy|anh|chị|bạn)?\s*(ạ|a|nhé|nha|nhiều)?\.?$',
+        # Collapse All markers from Discord
+        r'^Collapse All$',
+        # Reaction counts like "👍 1" "❤️ 2"
+        r'^[\U0001F300-\U0001F9FF\u2600-\u26FF]+\s*\d+$',
+    ]
+    
+    # Compile patterns
+    junk_regex = [re.compile(p, re.IGNORECASE | re.UNICODE) for p in junk_patterns]
+    
+    # Process line by line, keeping message structure
+    lines = raw_text.split('\n')
+    filtered_lines = []
+    current_message = []
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Check if this is a timestamp line (start of new message)
+        # Format: "Name\nHH:MM" or just timestamp
+        is_timestamp = bool(re.match(r'^\d{1,2}:\d{2}(:\d{2})?$', stripped))
+        
+        if is_timestamp and current_message:
+            # Get just the text part (after timestamp)
+            text_parts = [line_item for line_item in current_message if not re.match(r'^\d{1,2}:\d{2}', line_item.strip())]
+            text_only = ' '.join(text_parts).strip()
+            
+            # Skip if message is too short (less than 15 chars) unless it has a link
+            has_link = 'http' in text_only.lower()
+            is_junk = any(p.match(text_only) for p in junk_regex)
+            is_too_short = len(text_only) < 15 and not has_link
+            
+            if not is_junk and not is_too_short:
+                filtered_lines.extend(current_message)
+                filtered_lines.append('')  # Blank line between messages
+            
+            current_message = [line]
+        else:
+            current_message.append(line)
+    
+    # Don't forget last message
+    if current_message:
+        text_parts = [line_item for line_item in current_message if not re.match(r'^\d{1,2}:\d{2}', line_item.strip())]
+        text_only = ' '.join(text_parts).strip()
+        has_link = 'http' in text_only.lower()
+        is_junk = any(p.match(text_only) for p in junk_regex)
+        is_too_short = len(text_only) < 15 and not has_link
+        
+        if not is_junk and not is_too_short:
+            filtered_lines.extend(current_message)
+    
+    return '\n'.join(filtered_lines).strip()
+
 
 class VideoInputModal(discord.ui.Modal, title="Video Lecture Summary"):
     """Modal for entering video URL and title"""
@@ -120,6 +192,13 @@ class VideoInputModal(discord.ui.Modal, title="Video Lecture Summary"):
             interaction, interaction.client, self.user_id
         )
         
+        # Prompt for chat session .txt file (optional)
+        chat_content = await prompt_for_chat_session(
+            interaction, interaction.client, self.user_id
+        )
+        # Use chat content as extra context if provided
+        extra_context = chat_content if chat_content else None
+        
         # Hide the source selection view
         try:
             await self.parent_interaction.edit_original_response(
@@ -139,6 +218,7 @@ class VideoInputModal(discord.ui.Modal, title="Video Lecture Summary"):
             slides_original_path=slides_original_path,
             guild_id=self.guild_id,
             user_id=self.user_id,
+            extra_context=extra_context or None,
         )
         await processor.process()
 
@@ -147,7 +227,7 @@ class SlidesPromptView(discord.ui.View):
     """View with buttons to choose slides source: Upload, Drive Link, or Skip"""
     
     def __init__(self):
-        super().__init__(timeout=60)
+        super().__init__(timeout=None)  # No timeout - user can skip anytime
         self.choice = None  # "upload", "drive", or None
         self.result_interaction = None
     
@@ -320,6 +400,109 @@ async def prompt_for_slides(
     return None, None, None
 
 
+class ChatSessionPromptView(discord.ui.View):
+    """View with buttons to choose: Upload chat file or Skip"""
+    
+    def __init__(self):
+        super().__init__(timeout=None)  # No timeout - user can skip anytime
+        self.choice = None  # "upload" or None
+        self.result_interaction = None
+    
+    @discord.ui.button(label="📤 Upload Chat (.txt)", style=discord.ButtonStyle.primary)
+    async def upload_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.choice = "upload"
+        self.result_interaction = interaction
+        await interaction.response.send_message(
+            "📎 **Paste chat session vào channel này** (Discord sẽ tự động convert thành .txt)...\n"
+            "_(Có 3 phút để upload)_",
+            ephemeral=True,
+        )
+        self.stop()
+    
+    @discord.ui.button(label="❌ Bỏ qua", style=discord.ButtonStyle.secondary)
+    async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.choice = None
+        await interaction.response.defer()
+        self.stop()
+
+
+async def prompt_for_chat_session(
+    interaction: discord.Interaction,
+    bot,
+    user_id: int,
+) -> str | None:
+    """
+    Prompt user for optional chat session .txt file upload.
+    
+    Returns:
+        Chat session content as string, or None if skipped
+    """
+    import asyncio
+    
+    # Send prompt with buttons
+    view = ChatSessionPromptView()
+    prompt_msg = await interaction.followup.send(
+        "💬 **Có chat session cần bổ sung?**\n"
+        "_(Paste toàn bộ chat vào channel, Discord tự đóng gói thành .txt)_",
+        view=view,
+        ephemeral=True,
+    )
+    
+    # Wait for button choice
+    await view.wait()
+    
+    # Delete the prompt message
+    try:
+        await prompt_msg.delete()
+    except Exception:
+        pass
+    
+    if view.choice == "upload":
+        # Wait for .txt file upload
+        def check_txt_upload(message):
+            return (
+                message.author.id == user_id and 
+                message.channel.id == interaction.channel.id and
+                message.attachments and 
+                any(a.filename.lower().endswith('.txt') for a in message.attachments)
+            )
+        
+        try:
+            msg = await bot.wait_for('message', timeout=180.0, check=check_txt_upload)  # 3 minutes
+            
+            # Find .txt attachment
+            txt_attachment = next(a for a in msg.attachments if a.filename.lower().endswith('.txt'))
+            
+            # Read content
+            file_bytes = await txt_attachment.read()
+            raw_content = file_bytes.decode('utf-8', errors='ignore')
+            
+            # Preprocess to filter junk
+            chat_content = preprocess_chat_session(raw_content)
+            
+            # Delete user's message
+            try:
+                await msg.delete()
+            except Exception:
+                pass
+            
+            await interaction.followup.send(
+                f"✅ Đã nhận chat session: {txt_attachment.filename}\n"
+                f"📊 Raw: {len(raw_content)} chars → Filtered: {len(chat_content)} chars",
+                ephemeral=True
+            )
+            
+            return chat_content
+            
+        except asyncio.TimeoutError:
+            await interaction.followup.send(
+                "⏰ Hết thời gian chờ upload chat session. Tiếp tục không có chat...",
+                ephemeral=True
+            )
+            return None
+    
+    return None
+
 class VideoErrorView(discord.ui.View):
     """View with Retry / Change API Key / Close buttons for errors"""
     
@@ -491,6 +674,7 @@ class VideoLectureProcessor:
         slides_url: Optional[str] = None,
         slides_source: Optional[str] = None,  # "drive" | "upload" | None
         slides_original_path: Optional[str] = None,  # Original path or Drive URL
+        extra_context: Optional[str] = None,  # User-provided notes, Q&A, special requests
     ):
         self.interaction = interaction
         self.youtube_url = youtube_url
@@ -500,6 +684,7 @@ class VideoLectureProcessor:
         self.slides_url = slides_url
         self.slides_source = slides_source
         self.slides_original_path = slides_original_path
+        self.extra_context = extra_context
         self.status_msg: Optional[discord.WebhookMessage] = None
         self.temp_files: list[str] = []
         self.video_path: Optional[str] = None
@@ -928,6 +1113,7 @@ class VideoLectureProcessor:
                     prompts.GEMINI_MERGE_PROMPT,
                     slide_count=len(self.slide_images),
                     full_transcript=self.transcript or "",
+                    extra_context=self.extra_context or "",
                     api_key=user_gemini_key
                 )
                 
@@ -975,10 +1161,12 @@ class VideoLectureProcessor:
                     except Exception as e:
                         logger.warning(f"Slide matching failed: {e}, using summary without slides")
             
-            # Post-process: Convert timestamps to clickable links
-            # 1. Format TOC entries: [-"TOPIC"- | -SECONDS-] -> [MM:SS - TOPIC](url)
+            # Post-process: Format links and timestamps
+            # 1. Wrap external URLs with <> to hide embeds (run FIRST before timestamp formatting)
+            final_summary = gemini.format_external_links(final_summary)
+            # 2. Format TOC entries: [-"TOPIC"- | -SECONDS-] -> [MM:SS - TOPIC](url)
             final_summary = gemini.format_toc_hyperlinks(final_summary, self.youtube_url)
-            # 2. Format inline timestamps: [-SECONDSs-] -> [[MM:SS]](url)
+            # 3. Format inline timestamps: [-SECONDSs-] -> [[MM:SS]](url)
             final_summary = gemini.format_video_timestamps(final_summary, self.youtube_url)
             
             # STAGE 5: Send to channel with slides
@@ -986,7 +1174,7 @@ class VideoLectureProcessor:
             # Process LaTeX formulas:
             # - $$...$$ (block): Render to images
             # - $...$ (inline): Convert to Unicode
-            final_summary, latex_images = gemini.process_latex_formulas(final_summary)
+            final_summary, latex_images = latex_utils.process_latex_formulas(final_summary)
             
             header = f"🎓 **{self.title}**\n🔗 <{self.youtube_url}>\n\n"
             
@@ -1037,7 +1225,7 @@ class VideoLectureProcessor:
                 
                 if has_pages:
                     await send_chunked_with_pages(
-                        self.interaction.channel, parsed_parts, self.slide_images
+                        self.interaction.channel, parsed_parts, self.slide_images, latex_images
                     )
                 else:
                     # No page markers, send text only (with LaTeX images if any)

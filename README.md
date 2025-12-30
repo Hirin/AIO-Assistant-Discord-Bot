@@ -6,9 +6,10 @@ Meeting summary bot với Fireflies.ai + GLM (Z.AI) và Lecture summarization v�
 
 ### Meeting (`/meeting`)
 - 🎙️ **Join Meeting** - Bot tham gia và record Google Meet/Zoom
-- 📝 **Meeting Summarize** - Tóm tắt transcript với Deep Thinking LLM (GLM)
-- 📎 **Document Upload** - Upload PDF slides, VLM trích xuất nội dung (max 200 trang)
-- 💾 **24h Slide Cache** - Cache VLM output, skip re-processing khi retry
+- 📝 **Meeting Summarize** - Tóm tắt transcript với **Gemini** (priority) hoặc GLM (fallback)
+- 🧠 **Gemini Multimodal** - Xử lý slides PDF + transcript trong 1 call (khi có Gemini API key)
+- 📎 **Document Upload** - Upload PDF slides, tích hợp trực tiếp vào Gemini (max 200 trang)
+- 💾 **24h Slide Cache** - Cache VLM output cho fallback GLM
 - 📅 **Schedule** - Lên lịch join meeting tự động
 - 📥 **Archive Backup** - Backup transcripts vào Discord channel
 - 🛡️ **Whitelist** - Bảo vệ transcripts quan trọng
@@ -18,6 +19,9 @@ Meeting summary bot với Fireflies.ai + GLM (Z.AI) và Lecture summarization v�
 - 🧠 **Gemini API** - Dùng Gemini 3 Flash với Thinking Mode
 - 🎙️ **AssemblyAI** - Transcribe audio từ video (~100h free/month)
 - 📄 **PDF Slides** - Upload slides minh họa (Drive link hoặc file)
+- 💬 **Chat Session Upload** - Upload chat .txt với Q&A, community insights (auto filter junk)
+- 🔗 **Smart URL Formatting** - Auto wrap URLs với `<>` để hide Discord embeds
+- 🔢 **LaTeX Support** - Render block formulas $$...$$ to images, convert inline $...$ to Unicode
 - 🔀 **Parallel Processing** - Download + Transcribe + Slides xử lý song song
 - 💾 **Multi-stage Cache** - Cache video, transcript, slides, và part summaries
 - 📄 **Slides Footer** - Auto attach Drive link hoặc re-upload file sau summary
@@ -59,9 +63,13 @@ Meeting summary bot với Fireflies.ai + GLM (Z.AI) và Lecture summarization v�
 | Feature | Description |
 |---------|-------------|
 | 🤖 **Deep Thinking** | VLM/LLM sử dụng thinking mode cho kết quả sâu hơn |
-| 📄 **VLM Slide Extraction** | Trích xuất content từ slides (GLM-4.6V-Flash) |
+| 📄 **Gemini Multimodal Meeting** | Xử lý PDF slides + transcript trong 1 call (không cần VLM riêng) |
+| 📄 **VLM Slide Extraction (GLM)** | Fallback: Trích xuất content từ slides với GLM-4.6V-Flash |
 | 🎬 **Video + Slides + Transcript** | Gemini multimodal: video + images + text |
-| 💾 **Multi-layer Cache** | Video, transcript, slides, part summaries đều được cache |
+| � **Community Insights Extraction** | Tự động lọc và trích chat session (Q&A, explanations, links) |
+| 🔗 **Smart URL Formatting** | Auto wrap external links với `<>` để hide Discord embeds |
+| 🔢 **LaTeX Rendering** | Block formulas → images, inline formulas → Unicode symbols |
+| �💾 **Multi-layer Cache** | Video, transcript, slides, part summaries đều được cache |
 | ⏱️ **Timestamp/Slide Links** | Convert `[-123s-]` và `[-PAGE:X-]` markers |
 | 🔄 **Error Recovery** | Retry buttons + Continue/Cancel options |
 
@@ -140,8 +148,19 @@ flowchart TD
 
     subgraph LLM Summarization
         Q --> R["Format transcript"]
-        R --> T["LLM + MEETING_SUMMARY_PROMPT"]
-        T -->|"Success"| U["Process timestamps"]
+        R --> S{"User has Gemini key?"}
+        S -->|"Yes"| S1["🧠 Gemini Multimodal"]
+        S1 --> S1a{"Has PDF?"}
+        S1a -->|"Yes"| S1b["Upload PDF + Transcript"]
+        S1a -->|"No"| S1c["Transcript only"]
+        S1b --> T1["Gemini 3 Flash + Thinking"]
+        S1c --> T1
+        T1 -->|"Success"| U["Process timestamps"]
+        T1 -->|"Error"| T2["⚠️ Fallback to GLM"]
+        
+        S -->|"No key"| T["GLM + VLM slide content"]
+        T2 --> T
+        T -->|"Success"| U
         T -->|"Error 429"| V["Show Retry/Đóng buttons 🔄"]
         T -->|"Empty"| W["Retry automatically"]
         W --> T

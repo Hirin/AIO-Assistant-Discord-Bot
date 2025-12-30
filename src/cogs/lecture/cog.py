@@ -162,23 +162,13 @@ class GeminiApiConfigView(discord.ui.View):
             await interaction.followup.send("❌ Chưa set API key!", ephemeral=True)
             return
         
-        # Test with simple request
+        # Test with centralized service
         try:
-            os.environ["GOOGLE_API_KEY"] = api_key
-            from google import genai
-            from google.genai import types
-            
-            client = genai.Client()
-            response = client.models.generate_content(
-                model="gemini-3-flash-preview",
-                contents="Say 'API OK' in 2 words",
-                config=types.GenerateContentConfig(
-                    thinking_config=types.ThinkingConfig(thinking_level="minimal")
-                ),
-            )
+            from services import gemini
+            result = await gemini.test_api(api_key)
             
             await interaction.followup.send(
-                f"✅ API hoạt động!\nResponse: {response.text[:100]}",
+                f"✅ API hoạt động!\nResponse: {result[:100]}",
                 ephemeral=True
             )
         except Exception as e:

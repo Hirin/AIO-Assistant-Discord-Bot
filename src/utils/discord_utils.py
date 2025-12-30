@@ -117,18 +117,53 @@ async def send_chunked_with_pages(
     channel: discord.TextChannel,
     parts: list[tuple[str, int | None, str | None]],
     slide_images: list[str],
+    latex_images: list[tuple[str, str]] | None = None,
     chunk_size: int = 1900,
 ) -> None:
     """
-    Send text chunks with embedded slide page images.
+    Send text chunks with embedded slide page images and LaTeX formula images.
     
     Args:
         channel: Discord channel to send to
         parts: List of (text, page_number or None, description or None) from parse_pages_and_text
         slide_images: List of slide image paths (0-indexed)
+        latex_images: Optional list of (placeholder, image_path) for LaTeX formulas
         chunk_size: Max chars per message
     """
     from services.slides import get_page_image
+    import os
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Build a lookup dict for LaTeX images
+    latex_lookup = {placeholder: path for placeholder, path in (latex_images or [])}
+    
+    async def send_text_with_latex(text: str):
+        """Send text, replacing any LaTeX placeholders with images"""
+        if not latex_lookup:
+            await send_chunked(channel, text, chunk_size)
+            return
+        
+        remaining = text
+        for placeholder, img_path in (latex_images or []):
+            if placeholder in remaining:
+                parts_split = remaining.split(placeholder, 1)
+                if parts_split[0].strip():
+                    await send_chunked(channel, parts_split[0], chunk_size)
+                
+                # Send LaTeX image
+                if os.path.exists(img_path):
+                    try:
+                        file = discord.File(img_path, filename="formula.png")
+                        await channel.send(file=file)
+                        await asyncio.sleep(0.3)
+                    except Exception as e:
+                        logger.warning(f"Failed to send LaTeX image: {e}")
+                
+                remaining = parts_split[1] if len(parts_split) > 1 else ""
+        
+        if remaining.strip():
+            await send_chunked(channel, remaining, chunk_size)
     
     for part in parts:
         # Handle both old (text, page_num) and new (text, page_num, desc) formats
@@ -138,9 +173,9 @@ async def send_chunked_with_pages(
         else:
             text, page_num, description = part
         
-        # Send text chunk(s)
+        # Send text chunk(s) with LaTeX images
         if text.strip():
-            await send_chunked(channel, text, chunk_size)
+            await send_text_with_latex(text)
         
         # Send slide image if specified
         if page_num is not None and slide_images:
@@ -156,6 +191,12 @@ async def send_chunked_with_pages(
                     await channel.send(caption, file=file)
                     await asyncio.sleep(0.5)  # Rate limit
                 except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).warning(f"Failed to send slide {page_num}: {e}")
-
+                    logger.warning(f"Failed to send slide {page_num}: {e}")
+    
+    # Cleanup LaTeX images after sending
+    for _, img_path in (latex_images or []):
+        try:
+            if os.path.exists(img_path):
+                os.remove(img_path)
+        except Exception:
+            pass
