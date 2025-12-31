@@ -617,12 +617,14 @@ class VideoLectureProcessor:
             
             await queue.acquire_video_slot()
             
-            # Load user's API keys
-            user_gemini_key = config_service.get_user_gemini_api(self.user_id)
+            # Load user's API keys - use pool for auto-rotation
+            from services.gemini_keys import GeminiKeyPool
+            user_gemini_keys = config_service.get_user_gemini_apis(self.user_id)
+            gemini_key_pool = GeminiKeyPool(self.user_id, user_gemini_keys) if user_gemini_keys else None
             user_assemblyai_key = config_service.get_user_assemblyai_api(self.user_id)
             
-            if user_gemini_key:
-                logger.info(f"Using custom Gemini API key for user {self.user_id}")
+            if gemini_key_pool:
+                logger.info(f"Using Gemini key pool with {len(user_gemini_keys)} keys for user {self.user_id}")
             
             # Check for cached data from previous attempt
             cached_parts = lecture_cache.get_cached_parts(self.cache_id)
@@ -947,41 +949,84 @@ class VideoLectureProcessor:
                     f"({format_timestamp(part['start_seconds'])} - {format_timestamp(part['start_seconds'] + part['duration'])})"
                 )
                 
-                # Upload to Gemini
-                gemini_file = await gemini.upload_video(part["path"], api_key=user_gemini_key)
+                # Process with key rotation on 429 errors
+                max_key_retries = len(user_gemini_keys) if user_gemini_keys else 1
+                summary = None
+                last_error = None
                 
-                try:
-                    # Build prompt with transcript segment
-                    if part_num == 1:
-                        prompt = prompts.GEMINI_LECTURE_PROMPT_PART1.format(
-                            transcript_segment=transcript_segment if transcript_segment else "(Không có transcript)"
-                        )
+                for key_attempt in range(max_key_retries):
+                    # Get key from pool or fallback to env
+                    if gemini_key_pool:
+                        current_key = gemini_key_pool.get_available_key()
+                        if not current_key:
+                            raise Exception("Tất cả API keys đã bị rate limit. Vui lòng thêm key mới hoặc chờ đến ngày mai.")
                     else:
-                        context = self._condense_summaries(summaries)
-                        start_seconds = int(part["start_seconds"])
-                        prompt = prompts.GEMINI_LECTURE_PROMPT_PART_N.format(
-                            start_time=start_seconds,
-                            transcript_segment=transcript_segment if transcript_segment else "(Không có transcript)",
-                            previous_context=context,
+                        current_key = None  # Will use env key
+                    
+                    gemini_file = None
+                    try:
+                        # Upload to Gemini
+                        gemini_file = await gemini.upload_video(part["path"], api_key=current_key)
+                        
+                        # Build prompt with transcript segment
+                        if part_num == 1:
+                            prompt = prompts.GEMINI_LECTURE_PROMPT_PART1.format(
+                                transcript_segment=transcript_segment if transcript_segment else "(Không có transcript)"
+                            )
+                        else:
+                            context = self._condense_summaries(summaries)
+                            start_seconds = int(part["start_seconds"])
+                            prompt = prompts.GEMINI_LECTURE_PROMPT_PART_N.format(
+                                start_time=start_seconds,
+                                transcript_segment=transcript_segment if transcript_segment else "(Không có transcript)",
+                                previous_context=context,
+                            )
+                        
+                        summary = await gemini.generate_lecture_summary(
+                            gemini_file, prompt, guild_id=self.guild_id, api_key=current_key
                         )
+                        
+                        # Success - increment count and break
+                        if gemini_key_pool and current_key:
+                            gemini_key_pool.increment_count(current_key)
+                        break
+                        
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        last_error = e
+                        
+                        # Check for rate limit (429)
+                        if "429" in error_str or "rate" in error_str or "quota" in error_str:
+                            if gemini_key_pool and current_key:
+                                gemini_key_pool.mark_rate_limited(current_key)
+                                logger.warning(f"Key rate limited, rotating... (attempt {key_attempt + 1}/{max_key_retries})")
+                                await self.update_status("⚠️ API key bị rate limit, đang đổi key khác...")
+                                continue  # Try next key
+                            else:
+                                raise  # No pool, can't rotate
+                        else:
+                            raise  # Other error, don't retry
                     
-                    summary = await gemini.generate_lecture_summary(
-                        gemini_file, prompt, guild_id=self.guild_id, api_key=user_gemini_key
-                    )
-                    
-                    # Cache the summary
-                    lecture_cache.save_part_summary(
-                        self.cache_id, part_num, summary, part["start_seconds"]
-                    )
-                    summaries.append(summary)
-                    
-                    # Delete part video after successful processing
-                    cleanup_files([part["path"]])
-                    if part["path"] in self.temp_files:
-                        self.temp_files.remove(part["path"])
-                    
-                finally:
-                    gemini.cleanup_file(gemini_file, api_key=user_gemini_key)
+                    finally:
+                        if gemini_file:
+                            try:
+                                gemini.cleanup_file(gemini_file, api_key=current_key)
+                            except Exception:
+                                pass
+                
+                if summary is None:
+                    raise last_error or Exception("Failed to generate summary after all retries")
+                
+                # Cache the summary
+                lecture_cache.save_part_summary(
+                    self.cache_id, part_num, summary, part["start_seconds"]
+                )
+                summaries.append(summary)
+                
+                # Delete part video after successful processing
+                cleanup_files([part["path"]])
+                if part["path"] in self.temp_files:
+                    self.temp_files.remove(part["path"])
                 
                 # Wait between parts to avoid rate limit
                 if part_num < len(parts):
@@ -1009,13 +1054,16 @@ class VideoLectureProcessor:
                         chat_links_str = format_chat_links_for_prompt(chat_links)
                         logger.info(f"Extracted {len(chat_links)} links from chat session")
                 
+                # Get key from pool for merge
+                merge_key = gemini_key_pool.get_available_key() if gemini_key_pool else None
+                
                 final_summary = await gemini.merge_summaries(
                     summaries, 
                     prompts.GEMINI_MERGE_PROMPT,
                     full_transcript=self.transcript or "",
                     extra_context=self.extra_context or "",
                     chat_links=chat_links_str,
-                    api_key=user_gemini_key
+                    api_key=merge_key
                 )
                 
                 # Save to cache
@@ -1029,7 +1077,7 @@ class VideoLectureProcessor:
             # =============================================
             # STAGE 4.5: Slide Matching (if slides exist)
             # =============================================
-            if self.slide_images and user_gemini_key:
+            if self.slide_images and gemini_key_pool:
                 # Check cache first
                 slide_match_cache = lecture_cache.get_stage(self.cache_id, "slide_match")
                 if slide_match_cache and slide_match_cache.get("result"):
@@ -1056,12 +1104,15 @@ class VideoLectureProcessor:
                             with open(path, 'rb') as f:
                                 slide_images_b64.append(base64.b64encode(f.read()).decode())
                         
+                        # Get key from pool for slide matching
+                        slide_match_key = gemini_key_pool.get_available_key() if gemini_key_pool else None
+                        
                         # Call Gemini VLM for slide matching with PDF links
                         matched_summary = await gemini.match_slides_to_summary(
                             final_summary,
                             slide_images_b64,
                             pdf_links=pdf_links_str,
-                            api_key=user_gemini_key
+                            api_key=slide_match_key
                         )
                         
                         # Save to cache

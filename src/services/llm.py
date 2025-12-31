@@ -171,27 +171,49 @@ async def summarize_transcript(
     )
     
     # ========================================
-    # TRY GEMINI FIRST (if user has API key)
+    # TRY GEMINI FIRST (if user has API keys)
     # ========================================
-    user_gemini_key = None
+    user_gemini_keys = []
     if user_id:
-        user_gemini_key = config_service.get_user_gemini_api(user_id)
+        user_gemini_keys = config_service.get_user_gemini_apis(user_id)
     
-    if user_gemini_key:
-        try:
-            from services import gemini
-            logger.info(f"Using Gemini for transcript summary (user {user_id})")
-            summary = await gemini.summarize_transcript(
-                transcript=transcript,
-                system_prompt=system_prompt,
-                slide_content=slide_content,
-                api_key=user_gemini_key,
-                retries=retries,
-            )
-            return summary
-        except Exception as e:
-            logger.warning(f"Gemini failed, falling back to GLM: {e}")
-            # Fall through to GLM
+    if user_gemini_keys:
+        from services import gemini
+        from services.gemini_keys import GeminiKeyPool
+        
+        pool = GeminiKeyPool(user_id, user_gemini_keys)
+        last_error = None
+        
+        for attempt in range(len(user_gemini_keys)):
+            current_key = pool.get_available_key()
+            if not current_key:
+                break  # All keys exhausted, fall through to GLM
+            
+            try:
+                logger.info(f"Using Gemini for transcript summary (user {user_id}, attempt {attempt + 1})")
+                summary = await gemini.summarize_transcript(
+                    transcript=transcript,
+                    system_prompt=system_prompt,
+                    slide_content=slide_content,
+                    api_key=current_key,
+                    retries=retries,
+                )
+                pool.increment_count(current_key)
+                return summary
+            except Exception as e:
+                error_str = str(e).lower()
+                last_error = e
+                # Check for rate limit (429)
+                if "429" in error_str or "rate" in error_str or "quota" in error_str:
+                    pool.mark_rate_limited(current_key)
+                    logger.warning(f"Key rate limited, rotating... (attempt {attempt + 1})")
+                    continue
+                else:
+                    logger.warning(f"Gemini failed, falling back to GLM: {e}")
+                    break  # Other error, fall through to GLM
+        
+        if last_error:
+            logger.warning(f"All Gemini keys exhausted or failed: {last_error}")
     
     # ========================================
     # FALLBACK TO GLM (only if configured)

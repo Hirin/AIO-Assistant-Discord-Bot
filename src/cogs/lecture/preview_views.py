@@ -257,7 +257,10 @@ class PreviewProcessor:
         from services import config as config_service
         
         try:
-            user_gemini_key = config_service.get_user_gemini_api(self.user_id)
+            # Use key pool for auto-rotation on 429
+            from services.gemini_keys import GeminiKeyPool
+            user_gemini_keys = config_service.get_user_gemini_apis(self.user_id)
+            gemini_key_pool = GeminiKeyPool(self.user_id, user_gemini_keys) if user_gemini_keys else None
             
             # ==================================
             # STAGE 1: Download Drive files (if any)
@@ -297,7 +300,7 @@ class PreviewProcessor:
             
             # Run Gemini API call and PDF conversion in parallel
             async def call_gemini():
-                """Call Gemini with all PDF files using shared service"""
+                """Call Gemini with all PDF files using shared service with key rotation"""
                 # Extract links from all PDFs for References section
                 all_pdf_links = []
                 for pdf_path in pdf_files:
@@ -309,13 +312,37 @@ class PreviewProcessor:
                     pdf_links_str = slides_service.format_pdf_links_for_prompt(all_pdf_links)
                     logger.info(f"Extracted {len(all_pdf_links)} links from {len(pdf_files)} PDFs")
                 
-                return await gemini.summarize_pdfs(
-                    pdf_paths=pdf_files,
-                    prompt=prompts.PREVIEW_SLIDES_PROMPT,
-                    pdf_links=pdf_links_str,
-                    api_key=user_gemini_key,
-                    thinking_level="high",
-                )
+                # Retry with key rotation on 429
+                max_retries = len(user_gemini_keys) if user_gemini_keys else 1
+                last_error = None
+                
+                for attempt in range(max_retries):
+                    current_key = gemini_key_pool.get_available_key() if gemini_key_pool else None
+                    if gemini_key_pool and not current_key:
+                        raise Exception("Tất cả API keys đã bị rate limit.")
+                    
+                    try:
+                        result = await gemini.summarize_pdfs(
+                            pdf_paths=pdf_files,
+                            prompt=prompts.PREVIEW_SLIDES_PROMPT,
+                            pdf_links=pdf_links_str,
+                            api_key=current_key,
+                            thinking_level="high",
+                        )
+                        if gemini_key_pool and current_key:
+                            gemini_key_pool.increment_count(current_key)
+                        return result
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        last_error = e
+                        if "429" in error_str or "rate" in error_str or "quota" in error_str:
+                            if gemini_key_pool and current_key:
+                                gemini_key_pool.mark_rate_limited(current_key)
+                                logger.warning(f"Key rate limited, rotating... (attempt {attempt + 1})")
+                                continue
+                        raise
+                
+                raise last_error or Exception("Failed after all key retries")
             
             async def convert_pdfs():
                 """Convert all PDFs to images"""

@@ -226,53 +226,65 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
             # Generate summary
             transcript_text = fireflies.format_transcript_for_llm(transcript_data)
             
-            # Get user Gemini key for potential usage
+            # Get user Gemini keys for auto-rotation on 429
             from services import config as config_service
-            user_gemini_key = config_service.get_user_gemini_api(interaction.user.id)
+            from services.gemini_keys import GeminiKeyPool
+            user_gemini_keys = config_service.get_user_gemini_apis(interaction.user.id)
+            gemini_key_pool = GeminiKeyPool(interaction.user.id, user_gemini_keys) if user_gemini_keys else None
             
-            # PRIORITY PATH: Gemini (if user has key)
-            if user_gemini_key:
+            # PRIORITY PATH: Gemini (if user has keys)
+            summary = None
+            if gemini_key_pool:
                 from services import gemini
-                try:
-                    logger.info(f"Using Gemini for meeting summary (user {interaction.user.id}, slides={'yes' if pdf_path else 'no'})")
+                
+                # Extract links from PDF for References section
+                pdf_links_str = ""
+                if pdf_path:
+                    try:
+                        pdf_links = slides_service.extract_links_from_pdf(pdf_path)
+                        pdf_links_str = slides_service.format_pdf_links_for_prompt(pdf_links)
+                        if pdf_links:
+                            logger.info(f"Extracted {len(pdf_links)} links from PDF for meeting summary")
+                    except Exception as e:
+                        logger.warning(f"Failed to extract PDF links: {e}")
+                
+                # Get meeting summary prompt
+                system_prompt = config_service.get_prompt(
+                    self.guild_id,
+                    mode=mode,
+                    prompt_type="summary"
+                )
+                
+                # Retry with key rotation on 429
+                for attempt in range(len(user_gemini_keys)):
+                    current_key = gemini_key_pool.get_available_key()
+                    if not current_key:
+                        logger.warning("All Gemini keys exhausted, falling back to GLM")
+                        break
                     
-                    # Extract links from PDF for References section
-                    pdf_links_str = ""
-                    if pdf_path:
-                        try:
-                            pdf_links = slides_service.extract_links_from_pdf(pdf_path)
-                            pdf_links_str = slides_service.format_pdf_links_for_prompt(pdf_links)
-                            if pdf_links:
-                                logger.info(f"Extracted {len(pdf_links)} links from PDF for meeting summary")
-                        except Exception as e:
-                            logger.warning(f"Failed to extract PDF links: {e}")
-                    
-                    # Get meeting summary prompt
-                    system_prompt = config_service.get_prompt(
-                        self.guild_id,
-                        mode=mode,
-                        prompt_type="summary"
-                    )
-                    
-                    summary = await gemini.summarize_meeting(
-                        transcript=transcript_text,
-                        pdf_path=pdf_path,  # Can be None
-                        prompt=system_prompt,
-                        api_key=user_gemini_key,
-                        pdf_links=pdf_links_str,
-                    )
-                except Exception as e:
-                    logger.warning(f"Gemini failed, falling back to GLM: {e}")
-                    # FALLBACK: GLM
-                    summary = await llm.summarize_transcript(
-                        transcript_text, 
-                        guild_id=self.guild_id, 
-                        user_id=interaction.user.id,
-                        slide_content=slide_content, 
-                        mode=mode
-                    )
-            else:
-                # NO GEMINI KEY: Use GLM directly
+                    try:
+                        logger.info(f"Using Gemini for meeting summary (user {interaction.user.id}, attempt {attempt + 1})")
+                        summary = await gemini.summarize_meeting(
+                            transcript=transcript_text,
+                            pdf_path=pdf_path,  # Can be None
+                            prompt=system_prompt,
+                            api_key=current_key,
+                            pdf_links=pdf_links_str,
+                        )
+                        gemini_key_pool.increment_count(current_key)
+                        break
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        if "429" in error_str or "rate" in error_str or "quota" in error_str:
+                            gemini_key_pool.mark_rate_limited(current_key)
+                            logger.warning(f"Key rate limited, rotating... (attempt {attempt + 1})")
+                            continue
+                        else:
+                            logger.warning(f"Gemini failed, falling back to GLM: {e}")
+                            break
+            
+            # FALLBACK: GLM if no Gemini summary
+            if summary is None:
                 summary = await llm.summarize_transcript(
                     transcript_text, 
                     guild_id=self.guild_id, 
