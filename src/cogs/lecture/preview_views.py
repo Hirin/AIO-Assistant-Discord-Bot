@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from services import gemini, video_download, prompts
 from services import slides as slides_service
 from services import latex_utils
+from cogs.shared.feedback_view import FeedbackView
 
 logger = logging.getLogger(__name__)
 
@@ -351,7 +352,7 @@ class PreviewProcessor:
                 doc_images[i] = doc.images
             
             # Send with embedded slides and LaTeX
-            await send_chunked_with_multi_doc_pages(
+            msg_ids = await send_chunked_with_multi_doc_pages(
                 self.interaction.channel,
                 parsed_parts,
                 doc_images,
@@ -386,6 +387,25 @@ class PreviewProcessor:
             
             await self.update_status("✅ Hoàn thành!")
             self.cleanup()
+            
+            # ==================================
+            # STAGE 5: Send Feedback View
+            # ==================================
+            if msg_ids:
+                try:
+                    view = FeedbackView(
+                        message_ids=msg_ids,
+                        user_id=self.user_id,
+                        title=f"Preview {len(self.documents)} docs",
+                        feature="preview"
+                    )
+                    user = self.interaction.user
+                    await self.interaction.channel.send(
+                        f"{user.mention} **Bạn có hài lòng với kết quả này?**",
+                        view=view,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send feedback view: {e}")
             
         except Exception as e:
             logger.exception("Preview processing failed")
@@ -423,10 +443,11 @@ class PreviewErrorView(discord.ui.View):
     
     @discord.ui.button(label="🔑 Đổi API Key", style=discord.ButtonStyle.secondary)
     async def change_api_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Open API key modal"""
-        from cogs.lecture.cog import GeminiApiModal
-        modal = GeminiApiModal(self.processor.user_id)
-        await interaction.response.send_modal(modal)
+        """Open API key config view"""
+        from cogs.shared.gemini_config_view import GeminiConfigView
+        view = GeminiConfigView(self.processor.user_id)
+        embed = view._build_status_embed()
+        await interaction.response.edit_message(content=None, embed=embed, view=view)
     
     @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.danger)
     async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -480,7 +501,7 @@ async def send_chunked_with_multi_doc_pages(
     doc_images: dict[int, list[str]],  # {doc_num: [image_paths]}
     latex_images: list[tuple[str, str]] = None,  # [(placeholder, image_path)]
     chunk_size: int = 1900,
-):
+) -> list[int]:
     """
     Send text chunks with embedded slide images from multiple documents.
     
@@ -490,7 +511,11 @@ async def send_chunked_with_multi_doc_pages(
         doc_images: Dict mapping doc number to list of image paths
         latex_images: List of (placeholder, image_path) for LaTeX formulas
         chunk_size: Max characters per message
+        
+    Returns:
+        List of sent message IDs
     """
+    sent_messages = []  # Collect message IDs
     # Build LaTeX placeholder lookup
     latex_lookup = {}
     if latex_images:
@@ -511,19 +536,22 @@ async def send_chunked_with_multi_doc_pages(
                 parts = remaining.split(placeholder, 1)
                 # Send text before placeholder
                 if parts[0].strip():
-                    await channel.send(parts[0].strip())
+                    msg = await channel.send(parts[0].strip())
+                    sent_messages.append(msg.id)
                 # Send LaTeX image
                 if os.path.exists(img_path):
                     try:
                         file = discord.File(img_path, filename="formula.png")
-                        await channel.send(file=file)
+                        msg = await channel.send(file=file)
+                        sent_messages.append(msg.id)
                     except Exception as e:
                         logger.warning(f"Failed to send LaTeX image: {e}")
                 remaining = parts[1] if len(parts) > 1 else ""
         
         # Send any remaining text
         if remaining.strip():
-            await channel.send(remaining.strip())
+            msg = await channel.send(remaining.strip())
+            sent_messages.append(msg.id)
     
     for text_chunk, doc_num, page_num in parsed_parts:
         # Add text to current buffer
@@ -553,7 +581,8 @@ async def send_chunked_with_multi_doc_pages(
                 if os.path.exists(image_path):
                     try:
                         file = discord.File(image_path, filename=f"doc{doc_num}_page{page_num}.png")
-                        await channel.send(file=file)
+                        msg = await channel.send(file=file)
+                        sent_messages.append(msg.id)
                     except Exception as e:
                         logger.warning(f"Failed to send image doc{doc_num} page{page_num}: {e}")
     
@@ -569,3 +598,5 @@ async def send_chunked_with_multi_doc_pages(
         
         if current_text.strip():
             await send_text_with_latex(current_text.strip())
+    
+    return sent_messages

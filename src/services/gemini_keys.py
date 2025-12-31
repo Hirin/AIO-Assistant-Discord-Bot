@@ -47,8 +47,8 @@ def get_pt_date() -> str:
     return datetime.now(PT_TIMEZONE).strftime("%Y-%m-%d")
 
 
-def hash_key(api_key: str) -> str:
-    """Hash API key for storage (privacy)."""
+def _hash_key(api_key: str) -> str:
+    """Hash API key for storage (privacy). Internal use only."""
     return hashlib.md5(api_key.encode()).hexdigest()[:8]
 
 
@@ -57,7 +57,7 @@ def increment_request_count(user_id: int, api_key: str):
     data = _load_usage()
     user_key = str(user_id)
     pt_date = get_pt_date()
-    key_hash = hash_key(api_key)
+    key_hash = _hash_key(api_key)
     
     if user_key not in data:
         data[user_key] = {}
@@ -93,7 +93,7 @@ def get_daily_counts(user_id: int) -> dict[str, int]:
 def get_key_count(user_id: int, api_key: str) -> int:
     """Get request count for a specific key today."""
     counts = get_daily_counts(user_id)
-    key_hash = hash_key(api_key)
+    key_hash = _hash_key(api_key)
     return counts.get(key_hash, 0)
 
 
@@ -130,7 +130,7 @@ class GeminiKeyPool:
         for i in range(len(self.keys)):
             idx = (self._current_index + i) % len(self.keys)
             key = self.keys[idx]
-            key_hash = hash_key(key)
+            key_hash = _hash_key(key)
             
             # Skip manually marked rate-limited
             if key_hash in self._rate_limited_keys:
@@ -149,8 +149,8 @@ class GeminiKeyPool:
     
     def mark_rate_limited(self, api_key: str):
         """Mark a key as rate-limited (called on 429 error)."""
-        self._rate_limited_keys.add(hash_key(api_key))
-        logger.warning(f"Key {hash_key(api_key)} marked as rate-limited")
+        self._rate_limited_keys.add(_hash_key(api_key))
+        logger.warning(f"Key {_hash_key(api_key)} marked as rate-limited")
     
     def get_status(self) -> list[dict]:
         """
@@ -163,7 +163,7 @@ class GeminiKeyPool:
         counts = get_daily_counts(self.user_id)
         
         for i, key in enumerate(self.keys):
-            key_hash = hash_key(key)
+            key_hash = _hash_key(key)
             count = counts.get(key_hash, 0)
             result.append({
                 "index": i,

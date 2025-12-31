@@ -161,74 +161,6 @@ class LectureMainView(discord.ui.View):
 
 
 
-class GeminiApiConfigView(discord.ui.View):
-    """View for managing personal Gemini API key"""
-    
-    def __init__(self, user_id: int):
-        super().__init__(timeout=120)
-        self.user_id = user_id
-    
-    @discord.ui.button(label="🧪 Test API", style=discord.ButtonStyle.success)
-    async def test_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Test if API key works"""
-        await interaction.response.defer(ephemeral=True)
-        
-        api_key = config_service.get_user_gemini_api(self.user_id)
-        if not api_key:
-            await interaction.followup.send("❌ Chưa set API key!", ephemeral=True)
-            return
-        
-        # Test with centralized service
-        try:
-            from services import gemini
-            result = await gemini.test_api(api_key)
-            
-            await interaction.followup.send(
-                f"✅ API hoạt động!\nResponse: {result[:100]}",
-                ephemeral=True
-            )
-        except Exception as e:
-            await interaction.followup.send(
-                f"❌ API lỗi: {str(e)[:200]}",
-                ephemeral=True
-            )
-    
-    @discord.ui.button(label="⚙️ Set API", style=discord.ButtonStyle.primary)
-    async def set_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Open modal to set API key"""
-        modal = GeminiApiModal(self.user_id)
-        await interaction.response.send_modal(modal)
-    
-    @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.danger)
-    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="✅ Đã đóng", view=None)
-
-
-class GeminiApiModal(discord.ui.Modal, title="Set Gemini API Key"):
-    """Modal for entering personal Gemini API key"""
-    
-    api_key = discord.ui.TextInput(
-        label="Gemini API Key",
-        placeholder="AIza...",
-        required=True,
-    )
-    
-    def __init__(self, user_id: int):
-        super().__init__()
-        self.user_id = user_id
-    
-    async def on_submit(self, interaction: discord.Interaction):
-        key = self.api_key.value.strip()
-        
-        # Save to user config
-        config_service.set_user_gemini_api(self.user_id, key)
-        
-        await interaction.response.send_message(
-            f"✅ API Key đã lưu: `{mask_key(key)}`",
-            ephemeral=True
-        )
-
-
 class AssemblyAIApiConfigView(discord.ui.View):
     """View for managing personal AssemblyAI API key"""
     
@@ -281,31 +213,6 @@ class AssemblyAIApiModal(discord.ui.Modal, title="Set AssemblyAI API Key"):
         
         await interaction.response.send_message(
             f"✅ AssemblyAI API Key đã lưu: `{mask_key(key)}`",
-            ephemeral=True
-        )
-
-
-class FirefliesApiModal(discord.ui.Modal, title="Set Fireflies API Key"):
-    """Modal for entering personal Fireflies API key"""
-    
-    api_key = discord.ui.TextInput(
-        label="Fireflies API Key",
-        placeholder="...",
-        required=True,
-    )
-    
-    def __init__(self, user_id: int):
-        super().__init__()
-        self.user_id = user_id
-    
-    async def on_submit(self, interaction: discord.Interaction):
-        key = self.api_key.value.strip()
-        
-        # Save to user config
-        config_service.set_user_fireflies_api(self.user_id, key)
-        
-        await interaction.response.send_message(
-            f"✅ Fireflies API Key đã lưu: `{mask_key(key)}`",
             ephemeral=True
         )
 

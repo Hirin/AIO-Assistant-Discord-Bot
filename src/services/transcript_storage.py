@@ -444,26 +444,32 @@ def list_transcripts(guild_id: int, limit: int = 10) -> list[dict]:
     guild_dir = _get_guild_dir(guild_id)
 
     transcripts = []
-    # Sort by file modification time (newest first)
-    files = sorted(guild_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+    # Read all files first to get metadata
+    all_entries = []
+    files = list(guild_dir.glob("*.json"))
     
-    for file_path in files[:limit]:
+    for file_path in files:
         try:
             entry = json.loads(file_path.read_text())
-            # Return summary info with both id formats for compatibility
-            transcripts.append(
-                {
-                    "id": entry.get("id") or entry.get("fireflies_id"),
-                    "local_id": entry.get("local_id") or entry.get("id"),  # Backward compat
-                    "fireflies_id": entry.get("fireflies_id"),
-                    "title": entry.get("title"),
-                    "created_at": entry.get("created_at"),
-                    "created_timestamp": entry.get("created_timestamp"),
-                    "backup_url": entry.get("backup_url"),
-                }
-            )
+            all_entries.append(entry)
         except Exception as e:
             logger.error(f"Error reading {file_path}: {e}")
+            
+    # Sort by created_timestamp (newest first)
+    all_entries.sort(key=lambda x: x.get("created_timestamp", 0), reverse=True)
+    
+    for entry in all_entries[:limit]:
+        transcripts.append(
+            {
+                "id": entry.get("id") or entry.get("fireflies_id"),
+                "local_id": entry.get("local_id") or entry.get("id"),  # Backward compat
+                "fireflies_id": entry.get("fireflies_id"),
+                "title": entry.get("title"),
+                "created_at": entry.get("created_at"),
+                "created_timestamp": entry.get("created_timestamp"),
+                "backup_url": entry.get("backup_url"),
+            }
+        )
 
     return transcripts
 

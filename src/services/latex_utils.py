@@ -106,6 +106,31 @@ def _convert_single_formula(formula: str) -> str:
     result = re.sub(r'\\mathrm\{([^}]*)\}', r'\1', result)
     result = re.sub(r'\\mathbf\{([^}]*)\}', r'\1', result)
     
+    # Handle accents
+    # \hat{x} -> x̂
+    result = re.sub(r'\\hat\{([^}]*)\}', lambda m: m.group(1) + '\u0302', result)
+    result = re.sub(r'\\hat\s+([a-zA-Z0-9])', lambda m: m.group(1) + '\u0302', result)
+    
+    # \bar{x} -> x̄
+    result = re.sub(r'\\bar\{([^}]*)\}', lambda m: m.group(1) + '\u0304', result)
+    result = re.sub(r'\\bar\s+([a-zA-Z0-9])', lambda m: m.group(1) + '\u0304', result)
+    
+    # \vec{x} -> **x** (Bold for vectors, as unicode arrow is often missing)
+    result = re.sub(r'\\vec\{([^}]*)\}', r'**\1**', result)
+    result = re.sub(r'\\vec\s+([a-zA-Z0-9])', r'**\1**', result)
+    
+    # \tilde{x} -> x̃
+    result = re.sub(r'\\tilde\{([^}]*)\}', lambda m: m.group(1) + '\u0303', result)
+    result = re.sub(r'\\tilde\s+([a-zA-Z0-9])', lambda m: m.group(1) + '\u0303', result)
+    
+    # \dot{x} -> ẋ
+    result = re.sub(r'\\dot\{([^}]*)\}', lambda m: m.group(1) + '\u0307', result)
+    result = re.sub(r'\\dot\s+([a-zA-Z0-9])', lambda m: m.group(1) + '\u0307', result)
+    
+    # \ddot{x} -> ẍ
+    result = re.sub(r'\\ddot\{([^}]*)\}', lambda m: m.group(1) + '\u0308', result)
+    result = re.sub(r'\\ddot\s+([a-zA-Z0-9])', lambda m: m.group(1) + '\u0308', result)
+    
     # Handle superscripts ^{...} -> unicode superscript
     def sup_replace(m):
         content = m.group(1)

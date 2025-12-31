@@ -17,6 +17,7 @@ from services.lecture_utils import (
     format_chat_links_for_prompt
 )
 from utils.discord_utils import send_chunked
+from cogs.shared.feedback_view import FeedbackView
 
 logger = logging.getLogger(__name__)
 
@@ -78,14 +79,15 @@ class VideoInputModal(discord.ui.Modal, title="Video Lecture Summary"):
         # Use chat content as extra context if provided
         extra_context = chat_content if chat_content else None
         
-        # Hide the source selection view
+        # Hide the source selection view and embed
         try:
             await self.parent_interaction.edit_original_response(
                 content=f"⏳ Đang xử lý: **{title}** (~25-30 phút)",
+                embed=None,
                 view=None
             )
-        except Exception:
-            pass  # Ignore if already edited
+        except Exception as e:
+            logger.warning(f"Failed to hide parent view: {e}")
         
         # Start processing
         processor = VideoLectureProcessor(
@@ -547,117 +549,9 @@ class AssemblyAIApiKeyModal(discord.ui.Modal, title="Đổi AssemblyAI API Key")
         )
 
 
-class FeedbackView(discord.ui.View):
-    """View for user to rate/delete the generated summary."""
-    def __init__(self, message_ids: list[int], user_id: int, title: str = ""):
-        super().__init__(timeout=300)  # 5 minutes timeout
-        self.message_ids = message_ids
-        self.user_id = user_id
-        self.title = title  # Lecture title for logging
+# FeedbackReviewModal also available from shared module if needed
+# from cogs.shared.feedback_view import FeedbackReviewModal
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("Chỉ người yêu cầu mới được thao tác!", ephemeral=True)
-            return False
-        return True
-
-    @discord.ui.button(label="Hài lòng (Giữ kết quả)", style=discord.ButtonStyle.green, emoji="✅")
-    async def satisfied(self, interaction: discord.Interaction, button: discord.ui.Button):
-        from services import feedback_log
-        
-        # Log satisfied feedback
-        feedback_log.log_feedback(
-            guild_id=interaction.guild_id,
-            user_id=interaction.user.id,
-            feature="lecture",
-            title=self.title,
-            satisfied=True,
-            reason=None
-        )
-        logger.info(f"FEEDBACK_SATISFIED: User {interaction.user.id} Guild {interaction.guild_id}")
-        
-        # Delete the feedback message to keep channel clean
-        await interaction.response.defer()
-        try:
-            await interaction.message.delete()
-        except Exception:
-            pass
-        self.stop()
-
-    @discord.ui.button(label="Xóa kết quả", style=discord.ButtonStyle.red, emoji="🗑️")
-    async def delete_result(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Show review modal to collect feedback reason
-        modal = FeedbackReviewModal(
-            message_ids=self.message_ids,
-            title=self.title,
-            feedback_message=interaction.message
-        )
-        await interaction.response.send_modal(modal)
-        self.stop()
-
-
-class FeedbackReviewModal(discord.ui.Modal, title="Lý do xóa kết quả"):
-    """Modal to collect reason for deleting summary."""
-    
-    reason = discord.ui.TextInput(
-        label="Tại sao bạn không hài lòng?",
-        placeholder="VD: Tóm tắt thiếu nội dung, sai thông tin, format khó đọc...",
-        style=discord.TextStyle.paragraph,
-        required=True,
-        min_length=5,
-        max_length=500,
-    )
-    
-    def __init__(self, message_ids: list[int], title: str, feedback_message: discord.Message):
-        super().__init__()
-        self.message_ids = message_ids
-        self.lecture_title = title
-        self.feedback_message = feedback_message
-    
-    async def on_submit(self, interaction: discord.Interaction):
-        from services import feedback_log
-        
-        reason_text = self.reason.value.strip()
-        
-        # Log unsatisfied feedback with reason
-        feedback_log.log_feedback(
-            guild_id=interaction.guild_id,
-            user_id=interaction.user.id,
-            feature="lecture",
-            title=self.lecture_title,
-            satisfied=False,
-            reason=reason_text
-        )
-        logger.info(f"FEEDBACK_DELETE: User {interaction.user.id} Guild {interaction.guild_id} Reason: {reason_text[:50]}...")
-        
-        # Acknowledge and delete
-        await interaction.response.defer()
-        
-        # Delete summary messages
-        channel = interaction.channel
-        target_ids = set(self.message_ids)
-        
-        if isinstance(channel, (discord.TextChannel, discord.Thread)):
-            try:
-                deleted = await channel.purge(
-                    limit=100, 
-                    check=lambda m: m.id in target_ids,
-                    bulk=True
-                )
-                logger.info(f"Bulk deleted {len(deleted)} messages via purge")
-            except Exception as e:
-                logger.warning(f"Purge failed, falling back to concurrent delete: {e}")
-                tasks = [channel.get_partial_message(mid).delete() for mid in self.message_ids]
-                await asyncio.gather(*tasks, return_exceptions=True)
-        else:
-            tasks = [channel.get_partial_message(mid).delete() for mid in self.message_ids]
-            await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Delete the feedback message
-        try:
-            await self.feedback_message.delete()
-        except Exception:
-            pass
 
 class VideoLectureProcessor:
     """Handles the full video processing pipeline"""
@@ -1288,7 +1182,7 @@ class VideoLectureProcessor:
                 try:
                     # Collect IDs
                     msg_ids = [m.id for m in messages_to_track]
-                    view = FeedbackView(message_ids=msg_ids, user_id=self.user_id, title=self.title)
+                    view = FeedbackView(message_ids=msg_ids, user_id=self.user_id, title=self.title, feature="lecture")
                     # Send to channel directly (interaction token expires after 15 min,
                     # but lecture processing takes 25-30 min)
                     user = self.interaction.user

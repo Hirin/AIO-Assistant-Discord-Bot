@@ -166,7 +166,7 @@ def add_poll(
         "title": title,
         "created_at": datetime.now().isoformat(),
         "attempts": 0,
-        "max_attempts": 6,  # Poll up to 6 times (1 hour window)
+        "max_attempts": 9,  # Poll every 10min for 90min (1h to 2h30m window)
         "status": "pending",
         "glossary_text": glossary_text,  # Optional document glossary
     }

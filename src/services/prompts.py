@@ -274,7 +274,7 @@ Tiếp tục trích xuất NỘI DUNG MỚI trong phần này:
 
 ## 🎯 Quiz 
 - **Câu hỏi quiz:** Nội dung câu hỏi [-SECONDSs-]
-- **Đáp án đúng:** [A/B/C/D]
+- **Đáp án đúng:**
 - **Giải thích:** Tại sao đáp án này đúng/sai
 
 ## 📝 Thông tin thêm (out-topic) 
@@ -347,7 +347,7 @@ Hãy tổng hợp thành MỘT bài HOÀN CHỈNH, GIỮ NGUYÊN TẤT CẢ thô
 
 ## 🎯 Quiz - thường sẽ tầm 5-6 câu hỏi
 - **Câu hỏi quiz:** Nội dung [-SECONDSs-]
-- **Đáp án đúng:** [Xanh/Đỏ/Xanh lá/Vàng]
+- **Đáp án đúng:** 
 - **Giải thích:** Tại sao đáp án này đúng/sai
 
 ## 💬 Community Insights *(từ chat session)*
@@ -387,6 +387,8 @@ PREVIEW_SLIDES_PROMPT = """Đây là tài liệu/slides cho một buổi học. 
 - Tổng cộng 10-15 slides quan trọng nhất
 - ƯU TIÊN slides có: Diagram, công thức, bảng so sánh, code demo, hình minh họa
 - **References**: Nếu có links, thêm section "📚 References" mô tả chức năng mỗi link - nhớ luôn để link trong <> để suppress embed
+- **Công thức quan trọng:** thì viết giữa $$ formular $$ thay vì $ formular $ để render rõ ràng
+
 
 **Output format:**
 

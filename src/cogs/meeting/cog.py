@@ -69,23 +69,68 @@ class BackupPaginationView(discord.ui.View):
         embed.set_footer(text=f"Page {self.page + 1}/{self.total_pages}")
         return embed
 
-    @discord.ui.button(label="◀️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="◀️", style=discord.ButtonStyle.secondary, row=0)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page > 0:
             self.page -= 1
         embed = self.build_embed()
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="❌", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="❌", style=discord.ButtonStyle.danger, row=0)
     async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.message.delete()
 
-    @discord.ui.button(label="▶️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="▶️", style=discord.ButtonStyle.secondary, row=0)
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page < self.total_pages - 1:
             self.page += 1
         embed = self.build_embed()
         await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="✏️ Edit Title", style=discord.ButtonStyle.primary, row=1)
+    async def edit_title_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Open modal to edit transcript title by local ID"""
+        from .modals import EditTitleModal
+        modal = EditTitleModal(self.guild_id)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="🗑️ Remove", style=discord.ButtonStyle.danger, row=1)
+    async def remove_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Open modal to remove transcript from local storage"""
+        modal = RemoveTranscriptModal(self.guild_id, self)
+        await interaction.response.send_modal(modal)
+
+
+class RemoveTranscriptModal(discord.ui.Modal, title="Remove Transcript"):
+    """Modal for removing transcript from local storage"""
+
+    local_id = discord.ui.TextInput(
+        label="Local Transcript ID",
+        style=discord.TextStyle.short,
+        placeholder="v_dfbc... (copy từ list trên)",
+    )
+
+    def __init__(self, guild_id: int, parent_view: BackupPaginationView):
+        super().__init__()
+        self.guild_id = guild_id
+        self.parent_view = parent_view
+
+    async def on_submit(self, interaction: discord.Interaction):
+        local_id = self.local_id.value.strip()
+        
+        if transcript_storage.delete_transcript(local_id):
+            # Refresh the view
+            self.parent_view.transcripts = transcript_storage.list_transcripts(self.guild_id)
+            self.parent_view.total_pages = max(1, (len(self.parent_view.transcripts) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+            if self.parent_view.page >= self.parent_view.total_pages:
+                self.parent_view.page = max(0, self.parent_view.total_pages - 1)
+            
+            embed = self.parent_view.build_embed()
+            await interaction.response.edit_message(embed=embed, view=self.parent_view)
+        else:
+            await interaction.response.send_message(
+                f"❌ Không tìm thấy transcript `{local_id}`", ephemeral=True
+            )
 
 
 class WhitelistView(discord.ui.View):

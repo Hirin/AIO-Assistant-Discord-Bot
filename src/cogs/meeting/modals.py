@@ -12,27 +12,32 @@ import discord
 
 from services import fireflies, fireflies_api, llm, scheduler, transcript_storage, latex_utils, slides as slides_service
 from utils.discord_utils import send_chunked
+from cogs.shared.feedback_view import FeedbackView
 
 logger = logging.getLogger(__name__)
 
 
-async def _send_with_latex_images(channel, text: str, latex_imgs: list):
-    """Send text with embedded LaTeX images for meeting summaries"""
+async def _send_with_latex_images(channel, text: str, latex_imgs: list) -> list[int]:
+    """Send text with embedded LaTeX images for meeting summaries. Returns message IDs."""
+    sent_ids = []
+    
     if not latex_imgs:
-        await send_chunked(channel, text)
-        return
+        msgs = await send_chunked(channel, text)
+        return [m.id for m in (msgs or [])]
     
     remaining_text = text
     for placeholder, img_path in latex_imgs:
         if placeholder in remaining_text:
             parts = remaining_text.split(placeholder, 1)
             if parts[0].strip():
-                await send_chunked(channel, parts[0])
+                msgs = await send_chunked(channel, parts[0])
+                sent_ids.extend([m.id for m in (msgs or [])])
             
             # Send the LaTeX image
             try:
                 file = discord.File(img_path, filename="formula.png")
-                await channel.send(file=file)
+                msg = await channel.send(file=file)
+                sent_ids.append(msg.id)
                 await asyncio.sleep(0.3)
             except Exception as e:
                 logger.warning(f"Failed to send LaTeX image: {e}")
@@ -40,7 +45,8 @@ async def _send_with_latex_images(channel, text: str, latex_imgs: list):
             remaining_text = parts[1] if len(parts) > 1 else ""
     
     if remaining_text.strip():
-        await send_chunked(channel, remaining_text)
+        msgs = await send_chunked(channel, remaining_text)
+        sent_ids.extend([m.id for m in (msgs or [])])
     
     # Cleanup LaTeX images
     for _, img_path in latex_imgs:
@@ -49,6 +55,8 @@ async def _send_with_latex_images(channel, text: str, latex_imgs: list):
                 os.remove(img_path)
         except Exception:
             pass
+    
+    return sent_ids
 
 class ModeSelectionView(discord.ui.View):
     """View with buttons to select Meeting or Lecture mode"""
@@ -378,15 +386,33 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
                 summary = fireflies.process_summary_timestamps(summary, ff_link_for_processing)
             
             # Send summary to channel (not reply) to avoid deletion issues
+            msg_ids = []
             if summary:
                 # Process LaTeX formulas: $$...$$ -> image, $...$ -> Unicode
                 summary, latex_images = latex_utils.process_latex_formulas(summary)
                 
                 if latex_images:
                     # Send with embedded images for block formulas
-                    await _send_with_latex_images(interaction.channel, header + summary, latex_images)
+                    msg_ids = await _send_with_latex_images(interaction.channel, header + summary, latex_images)
                 else:
-                    await send_chunked(interaction.channel, header + summary)
+                    msgs = await send_chunked(interaction.channel, header + summary)
+                    msg_ids = [m.id for m in (msgs or [])]
+                
+                # Send FeedbackView
+                if msg_ids:
+                    try:
+                        view = FeedbackView(
+                            message_ids=msg_ids,
+                            user_id=interaction.user.id,
+                            title=title,
+                            feature="meeting"
+                        )
+                        await interaction.channel.send(
+                            f"{interaction.user.mention} **Bạn có hài lòng với kết quả này?**",
+                            view=view,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send feedback view: {e}")
             else:
                 await interaction.followup.send(
                     f"⚠️ Summary trống - LLM không trả về nội dung\n{header}",
@@ -459,7 +485,7 @@ class JoinMeetingModal(discord.ui.Modal, title="Join Meeting Now"):
 
         # Always create poll to fetch transcript later (with or without glossary)
         from datetime import datetime, timedelta
-        poll_time = datetime.now() + timedelta(hours=2, minutes=20)
+        poll_time = datetime.now() + timedelta(hours=1)  # Start polling after 1h
         scheduler.add_poll(
             guild_id=self.guild_id,
             poll_after=poll_time,
@@ -574,20 +600,14 @@ class ScheduleMeetingModal(discord.ui.Modal, title="Schedule Meeting"):
         )
 
         doc_status = "\n📎 Có tài liệu đính kèm" if glossary else ""
-        confirm_msg = await interaction.followup.send(
+        await interaction.followup.send(
             f"✅ Đã lên lịch!{doc_status}\n"
             f"**ID:** `{entry['id']}`\n"
             f"**Time:** {scheduled_time.strftime('%Y-%m-%d %H:%M')}\n"
             f"**Link:** {self.meeting_link.value[:50]}...\n"
             f"_(Dùng View Scheduled để xem/xóa)_",
-            wait=True,
         )
-        # Auto-delete after 60s
-        await asyncio.sleep(60)
-        try:
-            await confirm_msg.delete()
-        except Exception:
-            pass
+        # Message kept visible - no auto-delete
 
 
 class CancelScheduleModal(discord.ui.Modal, title="Cancel Scheduled Meeting"):
