@@ -7,7 +7,14 @@ import logging
 
 from services import config as config_service
 from services import gemini as gemini_service
-from services.gemini_keys import GeminiKeyPool, hash_key, get_key_count
+from services.gemini_keys import GeminiKeyPool, get_key_count
+
+
+def mask_key_tail(key: str) -> str:
+    """Show last 5 characters of API key for identification."""
+    if len(key) <= 5:
+        return "*" * len(key)
+    return f"...{key[-5:]}"
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +58,11 @@ class GeminiConfigView(discord.ui.View):
             statuses = pool.get_status()
             
             key_lines = []
-            for s in statuses:
+            for i, s in enumerate(statuses):
                 status_emoji = "🔴" if s["rate_limited"] else "🟢"
+                key_tail = mask_key_tail(keys[i])
                 key_lines.append(
-                    f"{status_emoji} Key #{s['index']+1} (`{s['hash']}`) - "
+                    f"{status_emoji} Key #{s['index']+1} (`{key_tail}`) - "
                     f"**{s['count']}/{s['limit']}** requests"
                 )
             
@@ -176,13 +184,13 @@ class RemoveKeySelectView(discord.ui.View):
         self.user_id = user_id
         self.parent_view = parent_view
         
-        # Build options
+        # Build options with last 5 chars for identification
         options = []
         for i, key in enumerate(keys):
-            key_hash = hash_key(key)
+            key_tail = mask_key_tail(key)
             count = get_key_count(user_id, key)
             options.append(discord.SelectOption(
-                label=f"Key #{i+1} ({key_hash})",
+                label=f"Key #{i+1} ({key_tail})",
                 description=f"{count}/20 requests today",
                 value=str(i)
             ))
@@ -191,7 +199,8 @@ class RemoveKeySelectView(discord.ui.View):
             placeholder="Chọn key để xóa...",
             options=options,
             min_values=1,
-            max_values=1
+            max_values=1,
+            row=0,  # Dropdown on top
         )
         select.callback = self.select_callback
         self.add_item(select)
@@ -209,7 +218,7 @@ class RemoveKeySelectView(discord.ui.View):
         else:
             await interaction.response.send_message(f"❌ {message}", ephemeral=True)
     
-    @discord.ui.button(label="⬅️ Quay lại", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="⬅️ Quay lại", style=discord.ButtonStyle.secondary, row=1)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Go back to parent view."""
         embed = self.parent_view._build_status_embed()

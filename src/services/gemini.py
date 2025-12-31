@@ -1,12 +1,13 @@
 """
 Gemini API Service for Video Lecture Summarization
 Supports multi-part video processing with chaining
+Supports multi-key personal API with auto-rotation on rate limits
 """
 import os
 import time
 import logging
 import asyncio
-from typing import Optional
+from typing import Optional, Callable, Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,68 @@ def get_client(api_key: Optional[str] = None):
     if not env_key:
         raise ValueError("No Gemini API key provided")
     return genai.Client(api_key=env_key)
+
+
+async def call_with_personal_keys(
+    user_id: int,
+    api_func: Callable[..., Any],
+    *args,
+    max_retries: int = 3,
+    **kwargs,
+) -> tuple[Any, str]:
+    """
+    Call an API function using user's personal key pool with auto-rotation.
+    
+    Args:
+        user_id: User's Discord ID
+        api_func: Async function to call (must accept api_key as kwarg)
+        *args: Args to pass to api_func
+        max_retries: Max retries on rate limit
+        **kwargs: Kwargs to pass to api_func
+        
+    Returns:
+        Tuple of (result, api_key_used)
+        
+    Raises:
+        Exception if all keys exhausted or other error
+    """
+    from services.gemini_keys import GeminiKeyPool
+    from services import config as config_service
+    
+    keys = config_service.get_user_gemini_apis(user_id)
+    if not keys:
+        # Fallback to env key  
+        env_key = os.getenv("GEMINI_API_KEY")
+        if env_key:
+            result = await api_func(*args, api_key=env_key, **kwargs)
+            return result, "env"
+        raise ValueError("No personal Gemini API keys configured and no env key available")
+    
+    pool = GeminiKeyPool(user_id, keys)
+    
+    for attempt in range(max_retries):
+        api_key = pool.get_available_key()
+        if not api_key:
+            raise Exception("All Gemini API keys exhausted (rate limited)")
+        
+        try:
+            result = await api_func(*args, api_key=api_key, **kwargs)
+            # Success - increment count
+            pool.increment_count(api_key)
+            return result, api_key
+        except Exception as e:
+            error_str = str(e).lower()
+            # Check for rate limit (429)
+            if "429" in error_str or "rate" in error_str or "quota" in error_str:
+                pool.mark_rate_limited(api_key)
+                logger.warning(f"Key rate limited, rotating... (attempt {attempt + 1})")
+                continue
+            else:
+                # Other error - propagate
+                raise
+    
+    raise Exception("Failed after max retries with rate limits")
+
 
 
 # Default model and thinking level for all Gemini calls

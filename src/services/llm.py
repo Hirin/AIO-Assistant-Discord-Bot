@@ -1,6 +1,7 @@
 """
 LLM Service - GLM API Client
 Uses OpenAI-compatible client with Z.AI base URL
+GLM is OPTIONAL - only used if GLM_API_KEY is configured
 """
 
 import asyncio
@@ -15,13 +16,29 @@ from services import config as config_service
 logger = logging.getLogger(__name__)
 
 
-def get_client(guild_id: Optional[int] = None) -> OpenAI:
-    """Get configured OpenAI client for GLM API"""
+def is_glm_available(guild_id: Optional[int] = None) -> bool:
+    """Check if GLM API is available (key configured)."""
+    if guild_id:
+        key = config_service.get_api_key(guild_id, "glm")
+        if key:
+            return True
+    return bool(os.getenv("GLM_API_KEY"))
+
+
+def get_client(guild_id: Optional[int] = None) -> Optional[OpenAI]:
+    """
+    Get configured OpenAI client for GLM API.
+    Returns None if no API key available.
+    """
     # Try guild-specific key first, then fallback to env
+    api_key = None
     if guild_id:
         api_key = config_service.get_api_key(guild_id, "glm")
-    else:
+    if not api_key:
         api_key = os.getenv("GLM_API_KEY")
+    
+    if not api_key:
+        return None
 
     return OpenAI(
         api_key=api_key,
@@ -57,10 +74,16 @@ async def extract_slide_content(
     """
     if not image_base64_list:
         return None
+    
+    # Check if GLM is available
+    client = get_client(guild_id)
+    if not client:
+        logger.warning("GLM not configured, skipping slide extraction")
+        return None
+    
     from services import config as config_service
     
     model = os.getenv("GLM_VISION_MODEL", "glm-4.6v-flash")
-    client = get_client(guild_id)
     
     # Get VLM prompt from config (allows per-guild customization)
     vlm_prompt = config_service.get_prompt(
@@ -171,10 +194,17 @@ async def summarize_transcript(
             # Fall through to GLM
     
     # ========================================
-    # FALLBACK TO GLM
+    # FALLBACK TO GLM (only if configured)
     # ========================================
-    model = os.getenv("GLM_MODEL", "glm-4.6")
     client = get_client(guild_id)
+    if not client:
+        # No GLM configured - return error
+        if user_gemini_key:
+            return "⚠️ Gemini API failed and GLM not configured as fallback"
+        else:
+            return "⚠️ No API keys configured. Please set Gemini API key or configure GLM."
+    
+    model = os.getenv("GLM_MODEL", "glm-4.6")
     
     # Inject slide content context if provided
     full_prompt = system_prompt
