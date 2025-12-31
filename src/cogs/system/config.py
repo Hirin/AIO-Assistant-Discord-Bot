@@ -129,17 +129,83 @@ class ApiKeySelectionView(discord.ui.View):
         super().__init__(timeout=60)
         self.guild_id = guild_id
 
+    @discord.ui.button(label="🤖 Gemini API (Global)", style=discord.ButtonStyle.success)
+    async def gemini_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Set Global Gemini API for guild automation"""
+        current_key = config_service.get_guild_gemini_api(self.guild_id)
+        if current_key:
+            status = f"✅ Đã set: `{config_service.mask_key(current_key)}`"
+        else:
+            status = "❌ Chưa set"
+        
+        view = GlobalGeminiApiView(self.guild_id)
+        await interaction.response.edit_message(
+            content=f"🤖 **Global Gemini API**\n\n"
+                    f"Status: {status}\n\n"
+                    f"_Dùng cho: Auto-join meeting, Scheduled summary_",
+            view=view
+        )
+
     @discord.ui.button(label="🔑 GLM API", style=discord.ButtonStyle.primary)
     async def glm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ApiModal(self.guild_id, "glm"))
 
-    @discord.ui.button(label="🔥 Fireflies API", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🔥 Fireflies API", style=discord.ButtonStyle.primary)
     async def fireflies_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ApiModal(self.guild_id, "fireflies"))
 
     @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.danger)
     async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(content="✅ Đã đóng", view=None)
+
+
+class GlobalGeminiApiView(discord.ui.View):
+    """View for managing Global Gemini API key"""
+    
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+    
+    @discord.ui.button(label="⚙️ Set API", style=discord.ButtonStyle.primary)
+    async def set_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        modal = GlobalGeminiApiModal(self.guild_id)
+        await interaction.response.send_modal(modal)
+    
+    @discord.ui.button(label="🗑️ Xóa API", style=discord.ButtonStyle.danger)
+    async def delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        config_service.set_guild_gemini_api(self.guild_id, "")
+        await interaction.response.send_message(
+            "✅ Đã xóa Global Gemini API key",
+            ephemeral=True
+        )
+    
+    @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.secondary)
+    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="✅ Đã đóng", view=None)
+
+
+class GlobalGeminiApiModal(discord.ui.Modal, title="Set Global Gemini API"):
+    """Modal for entering Global Gemini API key"""
+    
+    api_key = discord.ui.TextInput(
+        label="Gemini API Key",
+        placeholder="AIza...",
+        required=True,
+    )
+    
+    def __init__(self, guild_id: int):
+        super().__init__()
+        self.guild_id = guild_id
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        key = self.api_key.value.strip()
+        config_service.set_guild_gemini_api(self.guild_id, key)
+        
+        await interaction.response.send_message(
+            f"✅ Global Gemini API Key đã lưu: `{config_service.mask_key(key)}`\n"
+            f"_Dùng cho auto-join meeting, scheduled summary_",
+            ephemeral=True
+        )
 
 
 class ChannelTypeSelectionView(discord.ui.View):
@@ -436,9 +502,11 @@ class ConfigView(discord.ui.View):
             )
             
             # API Connections
+            gemini_global = config_service.get_guild_gemini_api(self.guild_id)
             embed.add_field(
                 name="📡 API Connections",
                 value=(
+                    f"• Gemini (Global): {'✅ Configured' if gemini_global else '❌ Not set'}\n"
                     f"• GLM: {'✅ Configured' if glm else '❌ Not set'}\n"
                     f"• Fireflies: {'✅ Configured' if ff else '❌ Not set'}"
                 ),

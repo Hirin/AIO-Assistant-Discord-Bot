@@ -386,25 +386,15 @@ class MeetingView(discord.ui.View):
     async def gemini_api_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        """Show Gemini API status with Set/Delete options"""
+        """Show Gemini API config view (multi-key)"""
+        from cogs.shared.gemini_config_view import GeminiConfigView
+        
         user_id = interaction.user.id
-        current_key = config_service.get_user_gemini_api(user_id)
+        view = GeminiConfigView(user_id)
+        embed = view._build_status_embed()
         
-        if current_key:
-            status_text = (
-                f"✅ **Gemini API: Đã cấu hình**\n"
-                f"Key: `{mask_key_short(current_key)}`\n\n"
-                f"Gemini sẽ được ưu tiên khi summarize meeting."
-            )
-        else:
-            status_text = (
-                "❌ **Gemini API: Chưa cấu hình**\n\n"
-                "Đang dùng GLM mặc định. Set Gemini API key để có kết quả tốt hơn."
-            )
-        
-        view = GeminiApiStatusView(user_id)
         await interaction.response.send_message(
-            status_text,
+            embed=embed,
             view=view,
             ephemeral=True
         )

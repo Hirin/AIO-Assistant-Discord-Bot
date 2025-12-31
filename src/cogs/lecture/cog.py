@@ -1,12 +1,11 @@
 """
-Lecture Cog - /lecture command with Video (Gemini) and Transcript (GLM) modes
-Per-user Gemini API key management
+Lecture Cog - /lecture command with Video summarization via Gemini
+Per-user Gemini API key management (multi-key support)
 """
 import discord
 from discord import app_commands
 from discord.ext import commands
 import logging
-import os
 
 from services import config as config_service
 
@@ -19,10 +18,10 @@ class LectureCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="lecture", description="Tóm tắt bài giảng từ video hoặc transcript")
+    @app_commands.command(name="lecture", description="Tóm tắt bài giảng từ video")
     async def lecture(self, interaction: discord.Interaction):
-        """Main lecture command - shows Summary or Config options"""
-        view = LectureMainView(interaction.guild_id, interaction.user.id)
+        """Main lecture command - shows action buttons"""
+        view = LectureMainView(interaction.guild_id, interaction.user.id, interaction)
         
         embed = discord.Embed(
             title="🎓 Lecture Summary",
@@ -30,18 +29,18 @@ class LectureCog(commands.Cog):
             color=discord.Color.blue()
         )
         embed.add_field(
-            name="📝 Summary",
-            value="Tóm tắt bài giảng từ video (Gemini) hoặc transcript (GLM)",
+            name="🎬 Record Summary",
+            value="Tóm tắt bài giảng từ video (Gemini)",
             inline=False
         )
         embed.add_field(
-            name="🔑 Config Gemini API",
-            value="Cấu hình API key Gemini (video summarization)",
+            name="📄 Preview Slides",
+            value="Xem trước nội dung slides trước buổi học",
             inline=True
         )
         embed.add_field(
-            name="🎙️ Config AssemblyAI API",
-            value="Cấu hình API key AssemblyAI (transcription)",
+            name="🔑 Personal Config",
+            value="Cấu hình API keys cá nhân (Gemini/AssemblyAI)",
             inline=True
         )
         
@@ -49,31 +48,52 @@ class LectureCog(commands.Cog):
 
 
 class LectureMainView(discord.ui.View):
-    """Main view: Summary or Config APIs"""
+    """Main view: Record Summary / Preview / Config APIs"""
     
-    def __init__(self, guild_id: int, user_id: int):
+    def __init__(self, guild_id: int, user_id: int, original_interaction: discord.Interaction = None):
         super().__init__(timeout=300)
         self.guild_id = guild_id
         self.user_id = user_id
+        self.original_interaction = original_interaction
     
-    @discord.ui.button(label="📝 Summary", style=discord.ButtonStyle.primary)
-    async def summary_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Open source selection view"""
-        from .video_views import LectureSourceView
-        view = LectureSourceView(self.guild_id, self.user_id)
-        
-        await interaction.response.edit_message(
-            content="**Chọn nguồn dữ liệu:**",
-            embed=None,
-            view=view
+    async def return_to_main(self, interaction: discord.Interaction):
+        """Callback to return to main lecture view"""
+        embed = discord.Embed(
+            title="🎓 Lecture Summary",
+            description="Chọn hành động:",
+            color=discord.Color.blue()
         )
+        embed.add_field(
+            name="🎬 Record Summary",
+            value="Tóm tắt bài giảng từ video (Gemini)",
+            inline=False
+        )
+        embed.add_field(
+            name="📄 Preview Slides",
+            value="Xem trước nội dung slides trước buổi học",
+            inline=True
+        )
+        embed.add_field(
+            name="🔑 Personal Config",
+            value="Cấu hình API keys cá nhân (Gemini/AssemblyAI)",
+            inline=True
+        )
+        
+        new_view = LectureMainView(self.guild_id, self.user_id, self.original_interaction)
+        await interaction.response.edit_message(embed=embed, content=None, view=new_view)
     
-    @discord.ui.button(label="📄 Preview", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🎬 Record Summary", style=discord.ButtonStyle.primary)
+    async def record_summary_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Open video input modal directly"""
+        from .video_views import VideoInputModal
+        modal = VideoInputModal(self.guild_id, self.user_id, interaction)
+        await interaction.response.send_modal(modal)
+    
+    @discord.ui.button(label="📄 Preview Slides", style=discord.ButtonStyle.success)
     async def preview_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Preview slides/documents before class"""
         from .preview_views import PreviewSourceView
         
-        # Create embed with instructions
         embed = discord.Embed(
             title="📄 Preview Tài Liệu",
             description=(
@@ -97,34 +117,30 @@ class LectureMainView(discord.ui.View):
         view = PreviewSourceView(
             guild_id=self.guild_id,
             user_id=self.user_id,
+            return_callback=self.return_to_main,
         )
         
         await interaction.response.edit_message(embed=embed, view=view)
     
     @discord.ui.button(label="🔑 Gemini API", style=discord.ButtonStyle.secondary)
     async def config_gemini_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Open Gemini API config view"""
-        view = GeminiApiConfigView(self.user_id)
+        """Open Gemini API config view (multi-key)"""
+        from cogs.shared.gemini_config_view import GeminiConfigView
         
-        # Check current API status
-        current_key = config_service.get_user_gemini_api(self.user_id)
-        if current_key:
-            status = f"✅ Đã set: `{mask_key(current_key)}`"
-        else:
-            status = "❌ Chưa set API key"
+        view = GeminiConfigView(self.user_id, return_callback=self.return_to_main)
+        embed = view._build_status_embed()
         
         await interaction.response.edit_message(
-            content=f"**🔑 Gemini API Config (Cá nhân)**\n\nStatus: {status}",
-            embed=None,
+            content=None,
+            embed=embed,
             view=view
         )
     
     @discord.ui.button(label="🎙️ AssemblyAI API", style=discord.ButtonStyle.secondary)
     async def config_assemblyai_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Open AssemblyAI API config view"""
-        view = AssemblyAIApiConfigView(self.user_id)
+        view = AssemblyAIApiConfigView(self.user_id, return_callback=self.return_to_main)
         
-        # Check current API status
         current_key = config_service.get_user_assemblyai_api(self.user_id)
         if current_key:
             status = f"✅ Đã set: `{mask_key(current_key)}`"
@@ -216,9 +232,10 @@ class GeminiApiModal(discord.ui.Modal, title="Set Gemini API Key"):
 class AssemblyAIApiConfigView(discord.ui.View):
     """View for managing personal AssemblyAI API key"""
     
-    def __init__(self, user_id: int):
+    def __init__(self, user_id: int, return_callback=None):
         super().__init__(timeout=120)
         self.user_id = user_id
+        self.return_callback = return_callback
     
     @discord.ui.button(label="⚙️ Set API", style=discord.ButtonStyle.primary)
     async def set_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -229,16 +246,18 @@ class AssemblyAIApiConfigView(discord.ui.View):
     @discord.ui.button(label="🗑️ Xóa API", style=discord.ButtonStyle.danger)
     async def delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Delete saved API key"""
-        # Set empty key to effectively delete
         config_service.set_user_assemblyai_api(self.user_id, "")
         await interaction.response.send_message(
             "✅ Đã xóa AssemblyAI API key",
             ephemeral=True
         )
     
-    @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.secondary)
-    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="✅ Đã đóng", view=None)
+    @discord.ui.button(label="⬅️ Quay lại", style=discord.ButtonStyle.secondary)
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.return_callback:
+            await self.return_callback(interaction)
+        else:
+            await interaction.response.edit_message(content="✅ Đã đóng", view=None)
 
 
 class AssemblyAIApiModal(discord.ui.Modal, title="Set AssemblyAI API Key"):

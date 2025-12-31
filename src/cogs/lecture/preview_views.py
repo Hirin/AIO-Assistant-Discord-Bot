@@ -31,10 +31,11 @@ class DocumentInfo:
 class PreviewSourceView(discord.ui.View):
     """View with buttons to choose upload method"""
     
-    def __init__(self, guild_id: int, user_id: int):
+    def __init__(self, guild_id: int, user_id: int, return_callback=None):
         super().__init__(timeout=300)
         self.guild_id = guild_id
         self.user_id = user_id
+        self.return_callback = return_callback
     
     @discord.ui.button(label="📤 Upload PDF", style=discord.ButtonStyle.primary)
     async def upload_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -61,9 +62,12 @@ class PreviewSourceView(discord.ui.View):
         modal = DriveLinksModal(self.guild_id, self.user_id)
         await interaction.response.send_modal(modal)
     
-    @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.danger)
-    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="✅ Đã đóng", embed=None, view=None)
+    @discord.ui.button(label="⬅️ Quay lại", style=discord.ButtonStyle.secondary)
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.return_callback:
+            await self.return_callback(interaction)
+        else:
+            await interaction.response.edit_message(content="✅ Đã đóng", embed=None, view=None)
 
 
 class DriveLinksModal(discord.ui.Modal, title="Google Drive Links"):

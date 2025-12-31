@@ -82,6 +82,31 @@ def get_api_key(guild_id: int, key_type: str) -> Optional[str]:
     return None
 
 
+def get_guild_gemini_api(guild_id: int) -> Optional[str]:
+    """
+    Get Global Gemini API key for guild automation.
+    Used for: auto-join meeting, scheduled summary.
+    """
+    import os
+    
+    config = get_guild_config(guild_id)
+    guild_key = config.get("gemini_api_key")
+    if guild_key:
+        return guild_key
+    
+    # Fallback to environment variable
+    return os.getenv("GEMINI_API_KEY")
+
+
+def set_guild_gemini_api(guild_id: int, api_key: str):
+    """
+    Set Global Gemini API key for guild automation.
+    Admin only - used for auto-join meeting, scheduled summary.
+    """
+    set_guild_config(guild_id, "gemini_api_key", api_key)
+    logger.info(f"Global Gemini API key set for guild {guild_id}")
+
+
 def mask_key(key: str) -> str:
     """Mask API key for display"""
     if not key or len(key) < 8:
@@ -116,31 +141,122 @@ def _save_user_configs(configs: dict):
     USER_CONFIG_FILE.write_text(json.dumps(configs, indent=2))
 
 
-def get_user_gemini_api(user_id: int) -> Optional[str]:
-    """Get user's personal Gemini API key"""
-    import os
-    
+MAX_GEMINI_KEYS = 5  # Maximum personal API keys per user
+
+
+def get_user_gemini_apis(user_id: int) -> list[str]:
+    """
+    Get user's personal Gemini API keys (list).
+    Auto-migrates old single key to list format.
+    """
     configs = _load_user_configs()
     user_key = str(user_id)
-    
-    # Try user-specific key first
     user_config = configs.get(user_key, {})
-    if user_config.get("gemini_api_key"):
-        return user_config["gemini_api_key"]
+    
+    # Check for new list format first
+    if "gemini_api_keys" in user_config:
+        return user_config["gemini_api_keys"]
+    
+    # Auto-migrate old single key to list
+    if "gemini_api_key" in user_config and user_config["gemini_api_key"]:
+        old_key = user_config["gemini_api_key"]
+        # Migrate
+        user_config["gemini_api_keys"] = [old_key]
+        del user_config["gemini_api_key"]
+        configs[user_key] = user_config
+        _save_user_configs(configs)
+        logger.info(f"Migrated single Gemini key to list for user {user_id}")
+        return [old_key]
+    
+    return []
+
+
+def get_user_gemini_api(user_id: int) -> Optional[str]:
+    """
+    Get first available Gemini API key for user.
+    DEPRECATED: Use get_user_gemini_apis() for multi-key support.
+    Kept for backward compatibility.
+    """
+    import os
+    
+    keys = get_user_gemini_apis(user_id)
+    if keys:
+        return keys[0]
     
     # Fallback to environment variable
     return os.getenv("GEMINI_API_KEY")
 
 
-def set_user_gemini_api(user_id: int, api_key: str):
-    """Set user's personal Gemini API key"""
+def add_user_gemini_api(user_id: int, api_key: str) -> tuple[bool, str]:
+    """
+    Add a Gemini API key to user's list.
+    
+    Returns:
+        (success, message)
+    """
     configs = _load_user_configs()
     user_key = str(user_id)
     
     if user_key not in configs:
         configs[user_key] = {}
     
-    configs[user_key]["gemini_api_key"] = api_key
+    # Get or init keys list
+    keys = configs[user_key].get("gemini_api_keys", [])
+    
+    # Check limit
+    if len(keys) >= MAX_GEMINI_KEYS:
+        return False, f"Đã đạt giới hạn {MAX_GEMINI_KEYS} API keys"
+    
+    # Check duplicate
+    if api_key in keys:
+        return False, "API key đã tồn tại"
+    
+    keys.append(api_key)
+    configs[user_key]["gemini_api_keys"] = keys
+    _save_user_configs(configs)
+    logger.info(f"Added Gemini API key #{len(keys)} for user {user_id}")
+    return True, f"Đã thêm API key #{len(keys)}"
+
+
+def remove_user_gemini_api(user_id: int, index: int) -> tuple[bool, str]:
+    """
+    Remove a Gemini API key by index (0-based).
+    
+    Returns:
+        (success, message)
+    """
+    configs = _load_user_configs()
+    user_key = str(user_id)
+    user_config = configs.get(user_key, {})
+    keys = user_config.get("gemini_api_keys", [])
+    
+    if index < 0 or index >= len(keys):
+        return False, f"Index không hợp lệ (0-{len(keys)-1})"
+    
+    keys.pop(index)
+    configs[user_key]["gemini_api_keys"] = keys
+    _save_user_configs(configs)
+    logger.info(f"Removed Gemini API key #{index+1} for user {user_id}")
+    return True, f"Đã xóa API key #{index+1}"
+
+
+def set_user_gemini_api(user_id: int, api_key: str):
+    """
+    Set user's personal Gemini API key.
+    DEPRECATED: Use add_user_gemini_api() for multi-key support.
+    Kept for backward compatibility - replaces all keys with single key.
+    """
+    configs = _load_user_configs()
+    user_key = str(user_id)
+    
+    if user_key not in configs:
+        configs[user_key] = {}
+    
+    configs[user_key]["gemini_api_keys"] = [api_key] if api_key else []
+    # Clean up old format
+    if "gemini_api_key" in configs[user_key]:
+        del configs[user_key]["gemini_api_key"]
+    
     _save_user_configs(configs)
     logger.info(f"Gemini API key set for user {user_id}")
 
