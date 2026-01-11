@@ -1072,14 +1072,24 @@ class VideoLectureProcessor:
                         chat_links_str = format_chat_links_for_prompt(chat_links)
                         logger.info(f"Extracted {len(chat_links)} links from chat session")
                 
+                # Merge transcript with chat by timestamp
+                merged_transcript = self.transcript or ""
+                if self.extra_context and self.transcript:
+                    from services import transcript_merger
+                    merged_transcript = transcript_merger.merge_transcript_with_chat(
+                        self.transcript,
+                        self.extra_context
+                    )
+                    logger.info(f"Merged transcript: {len(merged_transcript)} chars")
+                
                 # Get key from pool for merge
                 merge_key = gemini_key_pool.get_available_key() if gemini_key_pool else None
                 
                 final_summary = await gemini.merge_summaries(
                     summaries, 
                     prompts.GEMINI_MERGE_PROMPT,
-                    full_transcript=self.transcript or "",
-                    extra_context=self.extra_context or "",
+                    full_transcript=merged_transcript,
+                    extra_context="",  # Now merged into transcript, no separate context
                     chat_links=chat_links_str,
                     api_key=merge_key
                 )
