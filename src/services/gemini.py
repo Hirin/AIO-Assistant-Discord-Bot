@@ -9,6 +9,9 @@ import logging
 import asyncio
 from typing import Optional, Callable, Any
 
+from google import genai
+from google.genai import types
+
 logger = logging.getLogger(__name__)
 
 # No global client - always create fresh per request
@@ -19,7 +22,7 @@ def get_client(api_key: Optional[str] = None):
     Create Gemini client with given or env API key.
     Always creates a fresh client per request.
     """
-    from google import genai
+    # genai imported at module level
     
     if api_key:
         return genai.Client(api_key=api_key)
@@ -762,75 +765,91 @@ async def match_slides_to_summary(
     return await asyncio.to_thread(_call_gemini)
 
 
-async def validate_image_relevance(
-    image_bytes: bytes,
+async def validate_and_pick_best_image(
+    images: list[bytes],
     keyword: str,
     context: str = None,
     api_key: str = None,
-) -> tuple[bool, Optional[str]]:
+) -> tuple[Optional[int], Optional[str]]:
     """
-    Use Gemini 2.5 Flash to validate if image is relevant and get description.
+    Use Gemini 2.5 Flash to validate multiple images and pick the most relevant one.
     
     Args:
-        image_bytes: Image data
+        images: List of image bytes to validate
         keyword: Search keyword to validate against
         context: Additional context about the topic (helps with abbreviations)
         api_key: Optional Gemini API key
         
     Returns:
-        Tuple of (is_relevant, description) or (False, None)
+        Tuple of (best_image_index, description) or (None, None) if none are relevant
     """
-    from google import genai
-    from google.genai import types
-    
     def _validate():
         try:
             # Use provided key or fallback to env
             key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
             if not key:
                 logger.warning("No Gemini API key for image validation")
-                return True, None  # Skip validation if no key
+                return 0, None  # Default to first image if no key
             
             client = genai.Client(api_key=key)
             
-            # Create image part
-            image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+            # Create image parts
+            contents = []
+            for i, img_bytes in enumerate(images):
+                image_part = types.Part.from_bytes(data=img_bytes, mime_type="image/png")
+                contents.append(image_part)
             
             # Build context-aware prompt
             context_str = f"\n\nContext về topic: {context}" if context else ""
             
-            prompt = f"""Analyze this image:
-1. Is this image relevant to the topic "{keyword}"?{context_str}
-   Answer YES or NO.
-2. If YES, provide a brief Vietnamese description (1-2 sentences) of what the image shows.
+            prompt = f"""Tôi có {len(images)} hình ảnh (đánh số từ 1 đến {len(images)}).
+Hãy xem xét từng hình và chọn hình LIÊN QUAN NHẤT đến chủ đề "{keyword}".{context_str}
 
-Format your response EXACTLY as:
-RELEVANT: YES/NO
-DESCRIPTION: [your description in Vietnamese, or "N/A" if not relevant]"""
+Yêu cầu:
+1. Nếu có hình liên quan, trả về số thứ tự của hình đó (1-{len(images)})
+2. Nếu KHÔNG có hình nào liên quan, trả về 0
+3. Nếu có hình liên quan, mô tả ngắn gọn bằng tiếng Việt (1-2 câu)
 
+Format trả lời CHÍNH XÁC như sau:
+BEST: [số từ 0 đến {len(images)}]
+DESCRIPTION: [mô tả bằng tiếng Việt, hoặc "N/A" nếu không có hình liên quan]"""
+
+            contents.append(prompt)
+            
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
-                contents=[image_part, prompt],
+                contents=contents,
             )
             
             result_text = response.text.strip()
             
             # Parse response
-            is_relevant = "RELEVANT: YES" in result_text.upper()
-            
+            best_idx = None
             description = None
-            if is_relevant and "DESCRIPTION:" in result_text:
+            
+            if "BEST:" in result_text:
+                best_match = result_text.split("BEST:", 1)[1].split("\n")[0].strip()
+                try:
+                    best_num = int(best_match)
+                    if 1 <= best_num <= len(images):
+                        best_idx = best_num - 1  # Convert to 0-indexed
+                    elif best_num == 0:
+                        best_idx = None  # No relevant image
+                except ValueError:
+                    pass
+            
+            if best_idx is not None and "DESCRIPTION:" in result_text:
                 desc_match = result_text.split("DESCRIPTION:", 1)
                 if len(desc_match) > 1:
                     description = desc_match[1].strip()
                     if description.upper() == "N/A":
                         description = None
             
-            logger.info(f"Image validation for '{keyword[:30]}': relevant={is_relevant}")
-            return is_relevant, description
+            logger.info(f"Image validation for '{keyword[:30]}': best={best_idx}")
+            return best_idx, description
             
         except Exception as e:
             logger.warning(f"Image validation failed: {e}")
-            return True, None  # Default to accepting if validation fails
+            return 0, None  # Default to first image if validation fails
     
     return await asyncio.to_thread(_validate)
