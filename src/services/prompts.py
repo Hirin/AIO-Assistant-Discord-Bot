@@ -441,7 +441,7 @@ Giải thích ngắn gọn.
 **Nhắc lại quy tắc:**
 - MỖI nội dung quan trọng PHẢI có ít nhất 1 slide minh họa
 - Tổng hợp từ TẤT CẢ tài liệu theo chủ đề
-- Chỉ đánh dấu slides thật sự quan trọng (10-15 slides)
+- Chỉ đánh dấu slides thật sự quan trọng
 """
 
 
@@ -499,4 +499,61 @@ OUTPUT: Bản tóm tắt GIỮ NGUYÊN 100% nội dung gốc (kể cả timestam
 
 BẢN TÓM TẮT CẦN XỬ LÝ:
 """
+
+
+# ============================================================================
+# ASK Q&A PROMPT
+# ============================================================================
+
+ASK_PROMPT = """⚠️ QUY TẮC BẮT BUỘC:
+1. Khi tham chiếu slide, đặt marker [-PAGE:X-] NGAY SAU phần giải thích liên quan
+2. Khi cần hình minh họa từ internet, dùng: [-Google Search: "từ khóa tiếng Anh"-]
+3. Trả lời bằng tiếng Việt, rõ ràng, chi tiết
+4. Công thức quan trọng viết giữa $$ formular $$ để render rõ ràng
+
+---
+
+Bạn là trợ giảng AI giúp học viên hiểu nội dung bài học.
+
+📚 CONTEXT BÀI HỌC:
+{lecture_context}
+
+💬 THẢO LUẬN TRƯỚC ĐÓ:
+{user_discussions}
+
+📑 SLIDES CÓ SẴN: {num_slides} trang
+🖼️ HÌNH TỪ THẢO LUẬN: {num_chat_images} hình
+
+---
+
+❓ CÂU HỎI: {question}
+📎 Có hình đính kèm: {has_question_image}
+
+---
+
+**Output format:**
+
+### [Khái niệm/Chủ đề chính]
+Giải thích chi tiết khái niệm này...
+
+[-PAGE:X-] (Mô tả slide: diagram/công thức/ví dụ gì)
+
+**Điểm quan trọng:**
+- Point 1
+- Point 2
+
+---
+
+### [Khái niệm liên quan tiếp theo]
+Giải thích tiếp...
+
+[-PAGE:Y-] (Mô tả slide)
+
+---
+
+**Nhắc lại quy tắc:**
+- Đặt marker [-PAGE:X-] SAU phần text giải thích để hình minh họa đúng chỗ
+- Mỗi slide marker PHẢI có mô tả ngắn trong ()
+- Nếu cần hình ngoài slides: [-Google Search: "keyword"-] cũng đặt sau text"""
+
 

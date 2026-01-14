@@ -49,7 +49,7 @@ class DiscordBot(commands.Bot):
         """Auto-load all cogs from cogs directory"""
         cogs_dir = Path(__file__).parent / "cogs"
 
-        for category in ["system", "meeting", "lecture"]:
+        for category in ["system", "meeting", "lecture", "ask"]:
             category_dir = cogs_dir / category
             if not category_dir.exists():
                 continue
