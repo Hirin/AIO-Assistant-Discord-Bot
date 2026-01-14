@@ -438,6 +438,9 @@ class PreviewProcessor:
             
             # Log success to tracking channel
             from services import discord_logger
+            import os
+            doc_urls = [d.original_path for d in self.documents if d.source == "drive"]
+            doc_names = [os.path.basename(d.original_path) for d in self.documents if d.source == "upload"]
             await discord_logger.log_process(
                 bot=self.interaction.client,
                 guild=self.interaction.guild,
@@ -445,6 +448,8 @@ class PreviewProcessor:
                 process="Preview Slides",
                 status="Success",
                 success=True,
+                document_urls=doc_urls if doc_urls else None,
+                document_names=doc_names if doc_names else None,
             )
             
         except Exception as e:
@@ -453,6 +458,9 @@ class PreviewProcessor:
             
             # Log error to tracking channel
             from services import discord_logger
+            import os
+            doc_urls = [d.original_path for d in self.documents if d.source == "drive"]
+            doc_names = [os.path.basename(d.original_path) for d in self.documents if d.source == "upload"]
             await discord_logger.log_process(
                 bot=self.interaction.client,
                 guild=self.interaction.guild,
@@ -460,6 +468,8 @@ class PreviewProcessor:
                 process="Preview Slides",
                 status=error_msg,
                 success=False,
+                document_urls=doc_urls if doc_urls else None,
+                document_names=doc_names if doc_names else None,
             )
             
             # Show retry view

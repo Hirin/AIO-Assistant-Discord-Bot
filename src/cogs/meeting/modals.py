@@ -428,6 +428,18 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
                         view._message = feedback_msg
                     except Exception as e:
                         logger.warning(f"Failed to send feedback view: {e}")
+                
+                # Log success to tracking channel
+                from services import discord_logger
+                await discord_logger.log_process(
+                    bot=interaction.client,
+                    guild=interaction.guild,
+                    user=interaction.user,
+                    process="Meeting Summary",
+                    status="Success",
+                    success=True,
+                    slides_url=pdf_path if pdf_path else None,
+                )
             else:
                 await interaction.followup.send(
                     f"⚠️ Summary trống - LLM không trả về nội dung\n{header}",
@@ -436,6 +448,18 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
 
         except Exception as e:
             logger.exception("Error in meeting summary")
+            
+            # Log error to tracking channel
+            from services import discord_logger
+            await discord_logger.log_process(
+                bot=interaction.client,
+                guild=interaction.guild,
+                user=interaction.user,
+                process="Meeting Summary",
+                status=str(e)[:200],
+                success=False,
+            )
+            
             await interaction.followup.send(f"❌ Lỗi: {str(e)[:100]}")
 
 
@@ -487,9 +511,29 @@ class JoinMeetingModal(discord.ui.Modal, title="Join Meeting Now"):
         )
 
         if not success:
+            # Log error
+            from services import discord_logger
+            await discord_logger.log_process(
+                bot=interaction.client,
+                guild=interaction.guild,
+                user=interaction.user,
+                process="Join Meeting",
+                status=msg[:200],
+                success=False,
+            )
             await interaction.followup.send(f"❌ {msg}")
             return
 
+        # Log success
+        from services import discord_logger
+        await discord_logger.log_process(
+            bot=interaction.client,
+            guild=interaction.guild,
+            user=interaction.user,
+            process="Join Meeting",
+            status="Success",
+            success=True,
+        )
         await interaction.followup.send(f"✅ {msg}")
 
         # Now ask for optional document (while bot is joining/recording)
@@ -622,7 +666,17 @@ class ScheduleMeetingModal(discord.ui.Modal, title="Schedule Meeting"):
             f"**Link:** {self.meeting_link.value[:50]}...\n"
             f"_(Dùng View Scheduled để xem/xóa)_",
         )
-        # Message kept visible - no auto-delete
+        
+        # Log success
+        from services import discord_logger
+        await discord_logger.log_process(
+            bot=interaction.client,
+            guild=interaction.guild,
+            user=interaction.user,
+            process="Schedule Meeting",
+            status="Success",
+            success=True,
+        )
 
 
 class CancelScheduleModal(discord.ui.Modal, title="Cancel Scheduled Meeting"):

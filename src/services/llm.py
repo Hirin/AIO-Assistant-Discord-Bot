@@ -93,9 +93,10 @@ async def extract_slide_content(
         
         # Build key pool
         if user_gemini_keys:
-            gemini_key_pool = GeminiKeyPool(user_gemini_keys)
+            gemini_key_pool = GeminiKeyPool(user_id, user_gemini_keys)
         else:
-            gemini_key_pool = GeminiKeyPool([global_gemini_key]) if global_gemini_key else None
+            # For global key, use guild_id as pseudo-user
+            gemini_key_pool = GeminiKeyPool(guild_id or 0, [global_gemini_key]) if global_gemini_key else None
         
         if gemini_key_pool:
             max_key_retries = len(user_gemini_keys) if user_gemini_keys else 1

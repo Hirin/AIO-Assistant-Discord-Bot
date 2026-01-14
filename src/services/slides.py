@@ -87,27 +87,76 @@ def pdf_to_images(pdf_path: str, output_dir: str = "/tmp") -> list[str]:
     os.makedirs(images_dir, exist_ok=True)
     
     try:
-        # Convert PDF to images
-        images = convert_from_path(
-            pdf_path, 
-            dpi=150,
-            fmt="jpeg"
-        )
-        
-        if not images:
-            raise SlidesError("PDF không có nội dung hoặc bị hỏng.")
+        # Get page count first (lightweight operation) - used for progress logging
+        from pdf2image.pdf2image import pdfinfo_from_path
+        try:
+            info = pdfinfo_from_path(pdf_path)
+            total_pages = info.get("Pages", 0)
+            if total_pages:
+                logger.info(f"PDF has {total_pages} pages")
+        except Exception:
+            pass  # Not critical, will determine during conversion
         
         image_paths = []
-        for i, image in enumerate(images, 1):
-            image_path = os.path.join(images_dir, f"page_{i:03d}.jpg")
-            image.save(image_path, "JPEG", quality=85)
-            image_paths.append(image_path)
+        
+        # Convert 5 PAGES AT A TIME for balance between memory and speed
+        # 5 pages ≈ 15MB peak RAM, acceptable for VPS with 914MB
+        BATCH_SIZE = 5
+        page_num = 1
+        
+        while True:
+            try:
+                # Convert batch of pages
+                batch_end = page_num + BATCH_SIZE - 1
+                pages = convert_from_path(
+                    pdf_path,
+                    dpi=150,
+                    fmt="jpeg",
+                    first_page=page_num,
+                    last_page=batch_end,
+                )
+                
+                if not pages:
+                    break
+                
+                # Save each page and track paths
+                pages_in_batch = len(pages)
+                for i, page_image in enumerate(pages):
+                    current_page = page_num + i
+                    image_path = os.path.join(images_dir, f"page_{current_page:03d}.jpg")
+                    page_image.save(image_path, "JPEG", quality=85)
+                    image_paths.append(image_path)
+                
+                # Explicit cleanup to help garbage collector
+                del pages
+                
+                # Move to next batch
+                page_num += pages_in_batch
+                
+                # If we got fewer pages than batch size, we've reached the end
+                if pages_in_batch < BATCH_SIZE:
+                    break
+                
+                # Log progress for large PDFs
+                if len(image_paths) % 20 == 0:
+                    logger.info(f"Converted {len(image_paths)} pages...")
+                    
+            except Exception as e:
+                # Reached end of PDF or error
+                if page_num == 1:
+                    raise SlidesError(f"Không thể convert PDF: {e}")
+                break
+        
+        if not image_paths:
+            raise SlidesError("PDF không có nội dung hoặc bị hỏng.")
         
         logger.info(f"Converted {len(image_paths)} pages to images")
         return image_paths
         
     except (PDFPageCountError, PDFSyntaxError) as e:
         raise SlidesError(f"PDF bị hỏng hoặc không thể đọc: {e}")
+    except SlidesError:
+        raise
     except Exception as e:
         logger.error(f"Failed to convert PDF: {e}")
         raise SlidesError(f"Không thể convert PDF: {e}")

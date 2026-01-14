@@ -254,6 +254,14 @@ def process_summary_timestamps(summary: str, fireflies_id_or_url: str) -> str:
             base_url = base_url.split("?")[0]
     else:
         base_url = f"https://app.fireflies.ai/view/{fireflies_id_or_url}"
+    
+    # Pre-process: normalize multi-timestamp patterns
+    # [-3101s-, -4134s-] -> [-3101s-] (take first timestamp)
+    # [-3101s-,-4134s-] -> [-3101s-]
+    summary = re.sub(r'\[(-\d+s-),\s*-\d+s-\]', r'[\1]', summary)
+    
+    # Also handle variants like [-3101s- - -4134s-] or [-3101s-~-4134s-]
+    summary = re.sub(r'\[(-\d+s-)\s*[-~]\s*-\d+s-\]', r'[\1]', summary)
         
     def replace_ts(match):
         try:

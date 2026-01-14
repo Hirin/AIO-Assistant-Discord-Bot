@@ -4,7 +4,6 @@ GraphQL API client for Fireflies.ai
 """
 
 import logging
-import os
 from typing import Optional
 
 import httpx
@@ -17,12 +16,12 @@ API_URL = "https://api.fireflies.ai/graphql"
 
 
 def get_api_key(guild_id: Optional[int] = None) -> Optional[str]:
-    """Get Fireflies API key (guild-specific or env)"""
+    """Get Fireflies API key for guild (no fallback to env)"""
     if guild_id:
         key = config_service.get_api_key(guild_id, "fireflies")
         if key:
             return key
-    return os.getenv("FIREFLIES_API_KEY")
+    return None  # No fallback - guild must have its own key
 
 
 async def list_transcripts(

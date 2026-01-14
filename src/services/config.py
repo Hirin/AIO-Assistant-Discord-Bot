@@ -59,43 +59,22 @@ def set_guild_config(guild_id: int, key: str, value: str):
 
 
 def get_api_key(guild_id: int, key_type: str) -> Optional[str]:
-    """Get API key for a guild, fallback to env if not set"""
-    import os
-
+    """Get API key for a guild - no env fallback, guild must configure own keys"""
     config = get_guild_config(guild_id)
 
-    # Try guild-specific key first
+    # Guild-specific key only - no fallback to env
     guild_key = config.get(f"{key_type}_api_key")
-    if guild_key:
-        return guild_key
-
-    # Fallback to environment variable
-    env_mapping = {
-        "glm": "GLM_API_KEY",
-        "fireflies": "FIREFLIES_API_KEY",
-        "gemini": "GEMINI_API_KEY",
-    }
-    env_var = env_mapping.get(key_type)
-    if env_var:
-        return os.getenv(env_var)
-
-    return None
+    return guild_key
 
 
 def get_guild_gemini_api(guild_id: int) -> Optional[str]:
     """
     Get Global Gemini API key for guild automation.
     Used for: auto-join meeting, scheduled summary.
+    No env fallback - guild must configure own key.
     """
-    import os
-    
     config = get_guild_config(guild_id)
-    guild_key = config.get("gemini_api_key")
-    if guild_key:
-        return guild_key
-    
-    # Fallback to environment variable
-    return os.getenv("GEMINI_API_KEY")
+    return config.get("gemini_api_key")
 
 
 def set_guild_gemini_api(guild_id: int, api_key: str):
@@ -111,16 +90,10 @@ def get_global_assemblyai_api(guild_id: int) -> Optional[str]:
     """
     Get Global AssemblyAI API key for meeting transcription.
     Used for: meeting transcript (after scraping audio from Fireflies).
+    No env fallback - guild must configure own key.
     """
-    import os
-    
     config = get_guild_config(guild_id)
-    guild_key = config.get("assemblyai_api_key")
-    if guild_key:
-        return guild_key
-    
-    # Fallback to environment variable
-    return os.getenv("ASSEMBLYAI_API_KEY")
+    return config.get("assemblyai_api_key")
 
 
 def set_global_assemblyai_api(guild_id: int, api_key: str):

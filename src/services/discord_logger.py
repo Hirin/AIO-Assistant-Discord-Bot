@@ -151,6 +151,11 @@ async def log_process(
     status: str,
     success: bool,
     video_url: Optional[str] = None,
+    slides_url: Optional[str] = None,
+    has_chat: bool = False,
+    chat_content: Optional[str] = None,
+    document_urls: Optional[list[str]] = None,
+    document_names: Optional[list[str]] = None,
     attachment_path: Optional[str] = None,
     attachment_url: Optional[str] = None,
 ):
@@ -165,6 +170,10 @@ async def log_process(
         status: Status message (Success or error reason)
         success: Whether process was successful
         video_url: Optional video URL for lecture
+        slides_url: Optional slides URL for lecture
+        has_chat: Whether chat session was included
+        document_urls: Optional list of document URLs (Drive links, etc.)
+        document_names: Optional list of document filenames (for uploads)
         attachment_path: Optional local file path to upload
         attachment_url: Optional URL for large files (>30MB)
     """
@@ -184,6 +193,20 @@ async def log_process(
     
     if video_url:
         lines.append(f"🔗 Video: <{video_url}>")
+    
+    if slides_url:
+        lines.append(f"📑 Slides: <{slides_url}>")
+    
+    if has_chat:
+        lines.append("💬 Chat: Có")
+    
+    if document_urls:
+        for i, url in enumerate(document_urls[:5], 1):  # Max 5 links
+            lines.append(f"📑 Doc {i}: <{url}>")
+    elif document_names:
+        # Fallback: show filenames when no URLs (uploaded files)
+        for i, name in enumerate(document_names[:5], 1):
+            lines.append(f"📎 Doc {i}: `{name}`")
     
     # Handle attachment
     file = None
@@ -206,6 +229,14 @@ async def log_process(
             lines.append(f"📎 Attachment: {os.path.basename(attachment_path)} ({file_size_mb:.1f}MB - quá lớn)")
     elif attachment_url:
         lines.append(f"📎 Attachment: <{attachment_url}>")
+    elif chat_content:
+        # Create chat content as file attachment
+        import io
+        file = discord.File(
+            io.BytesIO(chat_content.encode('utf-8')),
+            filename="chat_session.txt"
+        )
+        lines.append("💬 Chat Session: (file đính kèm)")
     
     lines.append(f"Status: {status_emoji} {status}")
     

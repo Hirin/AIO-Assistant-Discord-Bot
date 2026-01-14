@@ -396,6 +396,18 @@ async def run_scheduler(bot):
                                         
                                         # 2. Tag everyone at the end
                                         await channel.send("@everyone Đây là nội dung meeting hôm nay")
+                                        
+                                        # 3. Log to tracking channel
+                                        from services import discord_logger
+                                        guild = bot.get_guild(guild_id)
+                                        await discord_logger.log_process(
+                                            bot=bot,
+                                            guild=guild,
+                                            user=None,  # Auto-polled, no specific user
+                                            process="Meeting Summary (Auto)",
+                                            status="Success",
+                                            success=True,
+                                        )
 
                             break  # Process one transcript per poll cycle
 

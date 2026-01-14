@@ -1,83 +1,79 @@
-# Discord Bot
+# AIO Assistant - Discord Bot for Group Meetings & Learning
 
-Meeting summary bot với Fireflies.ai + AssemblyAI transcription + Gemini/GLM summarization.
-Lecture summarization với Gemini + AssemblyAI.
+AI-powered Discord bot that streamlines group meetings and enhances the learning experience for AIO (AI Online) courses. Integrates with Fireflies.ai for meeting recordings, AssemblyAI for transcription, and Gemini/GLM for intelligent summarization.
 
-**Multi-key Gemini support** - Mỗi user có thể set tối đa 5 API keys với auto-rotation khi rate limit.
+**Multi-key Gemini Support** - Each user can configure up to 5 API keys with automatic rotation when rate limits are hit.
 
-## Features
+## Core Features
 
-### Meeting (`/meeting`)
-- 🎙️ **Join Meeting** - Bot tham gia và record Google Meet/Zoom (via Fireflies)
-- 📝 **Meeting Summarize** - Tóm tắt transcript với **Gemini** (priority) hoặc GLM (fallback)
-- 🔊 **AssemblyAI Transcript** - Scrape audio từ Fireflies → transcribe với AssemblyAI (free $50)
-- 🧠 **Gemini Multimodal** - Xử lý slides PDF + transcript trong 1 call (khi có Gemini API key)
-- 📎 **Document Upload** - Upload PDF slides, tích hợp trực tiếp vào Gemini (max 200 trang)
-- 📚 **Auto References** - Extract links từ PDF slides, model mô tả chức năng
-- 💾 **24h Slide Cache** - Cache VLM output cho fallback GLM
-- 📅 **Schedule** - Lên lịch join meeting tự động
-- 📥 **Archive Backup** - Backup transcripts vào Discord channel
-- 🛡️ **Whitelist** - Bảo vệ transcripts quan trọng
+### 🎙️ Meeting Module (`/meeting`)
+| Feature | Description |
+|---------|-------------|
+| **Join Meeting** | Bot joins and records Google Meet/Zoom via Fireflies |
+| **Smart Summarization** | Summarize transcripts with Gemini (primary) or GLM (fallback) |
+| **Audio Transcription** | Scrape audio from Fireflies → transcribe with AssemblyAI |
+| **Multimodal Processing** | Process PDF slides + transcript in a single Gemini call |
+| **Document Upload** | Upload PDF slides (up to 200 pages) for context-aware summaries |
+| **Auto References** | Extract and describe links from PDF slides |
+| **24h Slide Cache** | Cache VLM output for faster fallback processing |
+| **Meeting Scheduler** | Schedule automatic meeting joins |
+| **Archive Backup** | Backup transcripts to Discord channels |
+| **Whitelist Protection** | Protect important transcripts from deletion |
 
-### Lecture (`/lecture`)
-- 🎬 **Video Summarize** - Tóm tắt video bài giảng từ Google Drive/Direct URL
-- 🧠 **Gemini API** - Dùng Gemini 3 Flash với Thinking Mode
-- 🎙️ **AssemblyAI** - Transcribe audio từ video (~100h free/month)
-- 📄 **PDF Slides** - Upload slides minh họa (Drive link hoặc file)
-- 💬 **Chat Session Upload** - Upload chat .txt với Q&A, Quiz, community insights
-- 📚 **Auto References** - Extract links từ PDF slides và chat, model mô tả chức năng
-- 🎯 **Quiz Extraction** - Tách Q&A và Quiz riêng, giải thích đáp án chi tiết
-- 🔢 **LaTeX Support** - Render block formulas $$...$$ to images, inline $...$ to Unicode
-- 🔀 **Parallel Processing** - Download + Transcribe + Slides xử lý song song
-- 💾 **Multi-stage Cache** - Cache video, transcript, slides, và part summaries
-- 📑 **Preview Mode** - Tóm tắt nhiều PDF trước buổi học (1-5 files)
+### 📚 Lecture Module (`/lecture`)
+| Feature | Description |
+|---------|-------------|
+| **Video Summarization** | Summarize lecture videos from Google Drive or direct URLs |
+| **Gemini with Thinking** | Uses Gemini 2.5 Flash with deep thinking mode |
+| **AssemblyAI Transcription** | Transcribe audio from videos (~100h free/month) |
+| **Slide Integration** | Upload slides via Drive link or file attachment |
+| **Chat Session Upload** | Upload chat .txt files with Q&A, quizzes, and community insights |
+| **Quiz Extraction** | Separate Q&A and quizzes with detailed answer explanations |
+| **LaTeX Rendering** | Block formulas `$$...$$` → images, inline `$...$` → Unicode |
+| **Parallel Processing** | Download, transcribe, and process slides simultaneously |
+| **Multi-stage Cache** | Cache videos, transcripts, slides, and partial summaries |
+| **Preview Mode** | Summarize multiple PDFs (1-5 files) before class |
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/help` | Hiển thị danh sách commands |
-| `/config` | Cấu hình API keys, prompts, channels, limits |
-| `/meeting` | Menu với các meeting actions |
-| `/lecture` | Menu với Video/Transcript mode, Preview và API config |
+| `/help` | Display available commands |
+| `/config` | Configure API keys, prompts, channels, and limits |
+| `/meeting` | Meeting actions menu |
+| `/lecture` | Lecture actions: Video/Transcript mode, Preview, API config |
 
 ### Meeting Actions
-
-| Action | Description |
-|--------|-------------|
-| 📋 List from Fireflies | Xem transcripts trên Fireflies (có badge 🛡️ whitelist) |
-| 📥 View Backup | Xem backup transcripts với pagination và ID |
-| ✏️ Summarize | Tóm tắt từ ID/URL (Fireflies transcript) |
-| 📝 Edit Title | Đổi tên transcript, re-upload backup với tên mới |
-| 🚀 Join Now | Bot join meeting ngay |
-| 📅 Schedule | Lên lịch join |
-| 🛡️ Manage Whitelist | Toggle bảo vệ transcripts |
+- 📋 **List from Fireflies** - View transcripts on Fireflies (with 🛡️ whitelist badge)
+- 📥 **View Backup** - Browse backup transcripts with pagination
+- ✏️ **Summarize** - Summarize from ID/URL
+- 📝 **Edit Title** - Rename transcript and re-upload backup
+- 🚀 **Join Now** - Bot joins meeting immediately
+- 📅 **Schedule** - Schedule automatic join
+- 🛡️ **Manage Whitelist** - Toggle transcript protection
 
 ### Lecture Actions
+- 🎬 **Record Summary** - Summarize video with Gemini
+- 📄 **Preview Slides** - Summarize multiple PDF documents (1-5 files)
+- 🔑 **Gemini API** - Manage multi-key configuration (max 5)
+- 🎙️ **AssemblyAI API** - Set personal AssemblyAI API key
 
-| Action | Description |
-|--------|-------------|
-| 🎬 Record Summary | Tóm tắt từ video (Google Drive/Direct URL) với Gemini |
-| 📄 Preview Slides | Tóm tắt nhiều PDF documents (1-5 files) |
-| 🔑 Gemini API | Quản lý multi-key (max 5) với auto-rotation |
-| 🎙️ AssemblyAI API | Set API key AssemblyAI (per-user) |
+## AI Capabilities
 
-## AI Features
-
-| Feature | Description |
-|---------|-------------|
-| 🤖 **Deep Thinking** | VLM/LLM sử dụng thinking mode cho kết quả sâu hơn |
-| 📄 **Gemini Multimodal** | Xử lý PDF slides + transcript trong 1 call |
-| 📄 **VLM Slide Extraction** | Fallback: Trích xuất content từ slides với GLM |
-| 🎬 **Video + Slides + Transcript** | Gemini multimodal: video + images + text |
-| 💬 **Community Insights** | Tự động lọc chat session (Q&A, Quiz, explanations) |
-| 📚 **Auto References** | Extract links từ PDF/chat (Lecture + Meeting), model mô tả |
-| 🔢 **LaTeX Rendering** | Block formulas → images, inline → Unicode symbols |
-| 💾 **Multi-layer Cache** | Video, transcript, slides, part summaries cached |
-| ⏱️ **Timestamp/Slide Links** | Convert `[-123s-]` và `[-PAGE:X-]` markers |
+| Capability | Description |
+|------------|-------------|
+| 🤖 **Deep Thinking** | VLM/LLM uses thinking mode for deeper analysis |
+| 📄 **Multimodal Gemini** | Process PDF slides + transcript in one call |
+| 📄 **VLM Slide Extraction** | Fallback: Extract content from slides with GLM |
+| 🎬 **Video + Slides + Transcript** | Full multimodal processing |
+| 💬 **Community Insights** | Auto-filter chat sessions for Q&A and explanations |
+| 📚 **Auto References** | Extract and describe links from PDFs and chat |
+| 🔢 **LaTeX Rendering** | Convert formulas to images or Unicode |
+| 💾 **Multi-layer Cache** | Cache all processing stages |
+| ⏱️ **Smart Timestamps** | Convert `[-123s-]` and `[-PAGE:X-]` markers to clickable links |
 | 🔄 **Error Recovery** | Retry buttons + Continue/Cancel options |
 
-## Project Structure
+## Architecture
 
 ```
 src/
@@ -103,8 +99,8 @@ src/
 │   ├── discord_logger.py      # 3-channel Discord logging
 │   ├── prompts.py             # Meeting/Lecture VLM/LLM prompts
 │   ├── fireflies.py           # Fireflies transcript formatter
-│   ├── fireflies_api.py       # Fireflies GraphQL API (detect new transcripts, join meeting)
-│   ├── fireflies_scraper.py   # Scrape audio from Fireflies page + AssemblyAI transcribe
+│   ├── fireflies_api.py       # Fireflies GraphQL API
+│   ├── fireflies_scraper.py   # Scrape audio from Fireflies + AssemblyAI
 │   ├── llm.py                 # GLM API (VLM + LLM, optional)
 │   ├── gemini.py              # Gemini API + personal key pool
 │   ├── video.py               # Video processing (split, frames)
@@ -124,7 +120,7 @@ src/
 
 ```bash
 # Run all lecture tests
-conda run -n rin pytest tests/lecture/ -v
+pytest tests/lecture/ -v
 
 # Run specific test file
 pytest tests/lecture/test_chat_processing.py -v
@@ -138,237 +134,203 @@ pytest tests/lecture/test_latex.py -v
 | `test_output_parsing.py` | Timestamp markers, page markers, multi-doc |
 | `test_latex.py` | LaTeX → Unicode, image rendering |
 
-## Meeting Summary Pipeline
+## Pipelines
+
+### Meeting Summary Pipeline
 
 ```mermaid
 flowchart TD
-    subgraph User Input
+    subgraph Input
         A["/meeting → Summarize"] --> B["Enter ID/URL + Title"]
         B --> C["📋 Meeting Mode"]
     end
 
-    subgraph Document Upload
+    subgraph Document
         C --> E{"Upload PDF?"}
         E -->|"Yes"| F["Wait for attachment"]
         E -->|"Skip"| L["No slide context"]
-        F --> G{"Check Cache"}
-        G -->|"Cache Hit"| H["Use cached content ⚡"]
-        G -->|"Cache Miss"| I["Download PDF"]
-        I --> J["PDF → Images"]
-        J --> K["VLM Extract Slides"]
-        K -->|"Success"| K1["Save to Cache 💾"]
-        K -->|"Error"| K2["Show Retry/Cancel buttons"]
-        K1 --> L
+        F --> G{"Cache?"}
+        G -->|"Hit"| H["Use cached ⚡"]
+        G -->|"Miss"| I["Download → Convert → VLM"]
+        I --> L
         H --> L
     end
 
-    subgraph Transcript Retrieval
+    subgraph Transcript
         L --> M{"Input Type"}
         M -->|"Fireflies ID"| N["Fireflies API"]
         M -->|"Local ID"| O["Local Backup"]
         M -->|"Share URL"| P["Scrape URL"]
-        N -->|"Found"| Q["Get transcript"]
-        N -->|"Not found"| O
-        O --> Q
-        P --> Q
+        N & O & P --> Q["Get transcript"]
     end
 
-    subgraph LLM Summarization
+    subgraph Summarization
         Q --> R["Format transcript"]
-        R --> S{"User has Gemini key?"}
-        S -->|"Yes"| S1["🧠 Gemini Multimodal"]
-        S1 --> S1a{"Has PDF?"}
-        S1a -->|"Yes"| S1b["Upload PDF + Transcript"]
-        S1a -->|"No"| S1c["Transcript only"]
-        S1b --> T1["Gemini 3 Flash + Thinking"]
-        S1c --> T1
-        T1 -->|"Success"| U["Process timestamps"]
-        T1 -->|"Error"| T2["⚠️ Fallback to GLM"]
-        
-        S -->|"No key"| T["GLM + VLM slide content"]
-        T2 --> T
-        T -->|"Success"| U
-        T -->|"Error 429"| V["Show Retry/Đóng buttons 🔄"]
-        T -->|"Empty"| W["Retry automatically"]
-        W --> T
-        V -->|"Retry"| T
+        R --> S{"Gemini key?"}
+        S -->|"Yes"| T1["🧠 Gemini Multimodal"]
+        S -->|"No"| T2["GLM + VLM"]
+        T1 & T2 --> U["Process timestamps"]
     end
 
     subgraph Output
         U --> X["Add header + metadata"]
         X --> Y["Send to channel 📤"]
-        Y --> Z["Save to local backup"]
+        Y --> Z["Save to backup"]
     end
 ```
 
-## Lecture Video Pipeline
+### Lecture Video Pipeline
 
 ```mermaid
 flowchart TD
-    subgraph User Input
-        A["/lecture → Summary"] --> B["🎬 Video Mode"]
-        B --> C["Enter Google Drive/Direct URL + Title"]
-        C --> D{"Add Slides PDF?"}
-        D -->|"📤 Upload"| D1["Wait 90s for attachment"]
-        D -->|"🔗 Drive"| D2["Enter Drive link"]
-        D -->|"❌ Skip"| D3["No slides"]
-        D1 --> E["slides_source = upload"]
-        D2 --> E2["slides_source = drive"]
-        D3 --> E3["slides_source = None"]
+    subgraph Input
+        A["/lecture → Summary"] --> B["Enter Drive URL + Title"]
+        B --> D{"Add Slides?"}
+        D -->|"Upload"| D1["Wait for PDF"]
+        D -->|"Drive"| D2["Enter Drive link"]
+        D -->|"Skip"| D3["No slides"]
     end
 
-    subgraph Stage 1 - Video Download
-        E & E2 & E3 --> F{"Check Video Cache"}
-        F -->|"Hit"| G["Use cached video ⚡"]
-        F -->|"Miss"| H["Download video (yt-dlp)"]
-        H --> I["Get duration + size"]
-        I --> J["Calculate num_parts"]
-        G --> K["video_path ready"]
-        J --> K
+    subgraph Download
+        D1 & D2 & D3 --> F{"Video Cache?"}
+        F -->|"Hit"| G["Use cached ⚡"]
+        F -->|"Miss"| H["Download (yt-dlp)"]
+        H --> I["Split into parts"]
     end
 
-    subgraph Stage 2 - Parallel Processing
-        K --> L["🔀 Run in Parallel"]
-        
+    subgraph Parallel
+        G & I --> L["🔀 Parallel Processing"]
         L --> M1["📝 AssemblyAI Transcribe"]
-        M1 --> M1a{"Cached?"}
-        M1a -->|"Yes"| M1b["Use cached transcript"]
-        M1a -->|"No"| M1c["Upload + Transcribe ~6min"]
-        M1c --> M1d["Cache transcript"]
-        
         L --> M2["📄 Process Slides"]
-        M2 --> M2a{"Cached?"}
-        M2a -->|"Yes"| M2b["Use cached images"]
-        M2a -->|"No"| M2c["Download PDF"]
-        M2c --> M2d["Convert to images"]
-        M2d -->|"Error"| M2e["🔴 SlidesErrorView"]
-        M2e -->|"Continue"| M2f["slides = empty"]
-        M2e -->|"Retry"| M2c
-        M2e -->|"Cancel"| CANCEL["❌ Abort"]
-        M2d -->|"Success"| M2g["Cache slides"]
-        
         L --> M3["✂️ Split Video"]
-        M3 --> M3a{"Cached?"}
-        M3a -->|"Yes"| M3b["Use cached parts"]
-        M3a -->|"No"| M3c["FFmpeg split"]
-        M3c --> M3d["Cache segments"]
     end
 
-    subgraph Stage 3 - Gemini Summarization
-        M1b & M1d --> N1["transcript ready"]
-        M2b & M2g & M2f --> N2["slide_images ready"]
-        M3b & M3d --> N3["parts ready"]
-        
-        N1 & N2 & N3 --> O["For each video part"]
-        O --> P{"Check Part Cache"}
-        P -->|"Hit"| Q["Use cached summary"]
-        P -->|"Miss"| R["Build Gemini prompt"]
-        R --> S["Add video + slides + transcript"]
-        S --> T["🤖 Gemini with Thinking"]
-        T -->|"Success"| U["Cache part summary"]
-        T -->|"Error"| V["VideoErrorView 🔄"]
-        V -->|"Retry"| T
-        V -->|"Change API"| T
-        U --> W{"More parts?"}
-        Q --> W
+    subgraph Gemini
+        M1 & M2 & M3 --> O["For each part"]
+        O --> P{"Part Cache?"}
+        P -->|"Hit"| Q["Use cached"]
+        P -->|"Miss"| R["🤖 Gemini + Thinking"]
+        Q & R --> W{"More parts?"}
         W -->|"Yes"| O
-        W -->|"No"| X["Merge all summaries"]
+        W -->|"No"| X["Merge summaries"]
     end
 
-    subgraph Stage 4 - Final Merge
-        X --> Y["🤖 Gemini Final Merge"]
-        Y --> Z["Strip PAGE markers if no slides"]
-    end
-
-    subgraph Stage 5 - Output
-        Z --> AA{"Has slide_images?"}
-        AA -->|"Yes"| AB["Parse [-PAGE:X-] markers"]
-        AB --> AC["Send text + images"]
-        AA -->|"No"| AD["Send text only"]
-        AC & AD --> AE{"slides_source?"}
-        AE -->|"drive"| AF["📄 Send Drive link footer"]
-        AE -->|"upload"| AG["📄 Re-upload PDF file"]
-        AE -->|"None"| AH["Skip footer"]
-        AF & AG & AH --> AI["✅ Cleanup + Done"]
+    subgraph Output
+        X --> Y["Final Gemini merge"]
+        Y --> Z["Parse PAGE markers"]
+        Z --> AA["Send chunked messages"]
+        AA --> AB["✅ Done"]
     end
 ```
 
-## Preview Slides Pipeline
+### Preview Slides Pipeline
 
 ```mermaid
 flowchart TD
-    subgraph User Input
-        A["/lecture → Preview"] --> B["📄 Preview Slides Mode"]
-        B --> C["Upload PDF files (1-5)"]
-        C --> D["Confirm documents"]
+    subgraph Input
+        A["/lecture → Preview"] --> B["Upload PDFs (1-5)"]
+        B --> C["Confirm documents"]
     end
 
-    subgraph Stage 1 - Document Processing
-        D --> E["🔀 Parallel Download"]
-        E --> F1["📥 Download PDF 1"]
-        E --> F2["📥 Download PDF 2"]
-        E --> FN["📥 Download PDF N"]
-        F1 & F2 & FN --> G["Convert PDFs to images"]
-        G --> H["Extract links from PDFs"]
+    subgraph Processing
+        C --> D["🔀 Parallel Download"]
+        D --> E["Convert to images"]
+        E --> F["Extract links"]
     end
 
-    subgraph Stage 2 - Gemini Summary
-        H --> I{{"User has Gemini keys?"}}
-        I -->|"Yes"| J["🔑 GeminiKeyPool"]
-        I -->|"No"| K["❌ Error: No API key"]
-        J --> L["Call Gemini with all PDFs"]
-        L --> M["Generate multi-doc summary"]
+    subgraph Gemini
+        F --> G{"Gemini keys?"}
+        G -->|"Yes"| H["Call Gemini with all PDFs"]
+        G -->|"No"| I["❌ Error: No API key"]
+        H --> J["Generate summary"]
     end
 
-    subgraph Stage 3 - Output
-        M --> N["Parse output markers"]
-        N --> O["[-DOC{N}:PAGE:{X}-] → Embed images"]
-        O --> P["Send chunked messages"]
-        P --> Q["📊 FeedbackView"]
-        Q --> R["✅ Done"]
+    subgraph Output
+        J --> K["Parse DOC/PAGE markers"]
+        K --> L["Send with embedded images"]
+        L --> M["📊 FeedbackView"]
+        M --> N["✅ Done"]
     end
 ```
 
 ## Setup
 
 ```bash
+# Install dependencies
 uv sync
 playwright install chromium
+
+# Configure environment
 cp .env.example .env
 nano .env
+
+# Run
 uv run python src/main.py
 ```
 
-## Deploy (AWS)
+## Deployment
 
 ```bash
-AWS_HOST="ubuntu@your-ip" ./deploy.sh
+# Deploy to AWS
+AWS_HOST="ubuntu@your-ip" AWS_KEY="~/.ssh/your-key.pem" bash deploy.sh
 ```
 
 ## Bot Permissions
 
 Required Discord permissions (integer: `274877975552`):
-
 - Send Messages, Read Message History
-- Manage Messages (xóa attachments)
+- Manage Messages
 - Use Application Commands
 - Embed Links, Attach Files
 
-## Environment Variables
+## Configuration
+
+### Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `BOT_TOKEN` | ✅ | Discord bot token |
 | `GUILD_ID` | ❌ | Test server ID (faster sync) |
-| `GEMINI_API_KEY` | ❌ | Fallback Gemini key (users set own) |
-| `GLM_API_KEY` | ❌ | Z.AI API key (optional fallback) |
 | `GLM_BASE_URL` | ❌ | Z.AI API base URL |
 | `GLM_MODEL` | ❌ | LLM model (default: GLM-4.5-Flash) |
 | `GLM_VISION_MODEL` | ❌ | VLM model (default: GLM-4.6V-Flash) |
-| `FIREFLIES_API_KEY` | ❌ | Fireflies API key |
 
-> GLM is optional - only used if `GLM_API_KEY` is configured
+> **Note:** API keys (Gemini, GLM, Fireflies, AssemblyAI) are **guild-specific only** with no environment fallback. Each guild must configure via `/config > Set API Keys`.
+
+### Guild API Keys
+
+| Key | Used For |
+|-----|----------|
+| `fireflies_api_key` | Join Meeting, List Transcripts |
+| `glm_api_key` | Meeting/Lecture summarization (fallback) |
+| `gemini_api_key` | Guild automation, scheduled summaries |
+| `assemblyai_api_key` | Meeting transcript (Fireflies audio → text) |
+
+## Process Logging
+
+All processes are logged to Discord tracking channels:
+- **Preview Slides**: Document URLs/names, success/error
+- **Lecture Summary**: Video URL, slides URL, chat session attachment
+- **Meeting Summary**: Success/error with user info
+- **Join Meeting**: Success/error status
+- **Schedule Meeting**: Confirmation and status
+
+## Performance Optimizations
+
+| Optimization | Description |
+|--------------|-------------|
+| **PDF Conversion** | Batch 5 pages at a time (~15MB peak RAM) |
+| **Fireflies Scraper** | Direct transcript_id pattern matching |
+| **Gemini Keys** | Multi-key rotation with per-user usage tracking |
+| **Multi-stage Cache** | Video, transcript, slides, and summaries cached |
 
 ## Supported Platforms
 
-Google Meet, Zoom, MS Teams, [+more](https://fireflies.ai/integrations)
+- Google Meet
+- Zoom
+- Microsoft Teams
+- [+ more integrations](https://fireflies.ai/integrations)
+
+## License
+
+MIT

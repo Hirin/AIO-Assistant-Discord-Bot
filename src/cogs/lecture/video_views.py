@@ -1311,6 +1311,10 @@ class VideoLectureProcessor:
                 status="Success",
                 success=True,
                 video_url=self.youtube_url,
+                slides_url=self.slides_original_path if self.slides_source == "drive" else None,
+                has_chat=bool(self.extra_context),
+                chat_content=self.extra_context if self.extra_context else None,
+                attachment_path=self.slides_original_path if self.slides_source == "upload" else None,
             )
             
         except Exception as e:
@@ -1326,6 +1330,8 @@ class VideoLectureProcessor:
                 status=str(e)[:200],
                 success=False,
                 video_url=self.youtube_url,
+                slides_url=self.slides_original_path if self.slides_source == "drive" else None,
+                has_chat=bool(self.extra_context),
             )
             
             # Show error with retry buttons

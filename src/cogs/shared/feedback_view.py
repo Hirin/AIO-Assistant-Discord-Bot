@@ -49,6 +49,9 @@ class FeedbackView(discord.ui.View):
     async def satisfied(self, interaction: discord.Interaction, button: discord.ui.Button):
         from services import feedback_log, discord_logger
         
+        # Defer FIRST to prevent interaction token expiry
+        await interaction.response.defer()
+        
         # Log satisfied feedback to local file
         feedback_log.log_feedback(
             guild_id=interaction.guild_id,
@@ -74,11 +77,11 @@ class FeedbackView(discord.ui.View):
         logger.info(f"FEEDBACK_SATISFIED: feature={self.feature} user={interaction.user.id}")
         
         # Delete the feedback message to keep channel clean
-        await interaction.response.defer()
         try:
             await interaction.message.delete()
-        except Exception:
-            pass
+            logger.info("Deleted feedback message after satisfied click")
+        except Exception as e:
+            logger.warning(f"Failed to delete feedback message: {e}")
         self.stop()
 
     @discord.ui.button(label="Xóa kết quả", style=discord.ButtonStyle.red, emoji="🗑️")

@@ -39,8 +39,8 @@ async def scrape_audio_url(transcript_id: str) -> Optional[str]:
             # Navigate to page
             await page.goto(url, wait_until="networkidle", timeout=30000)
             
-            # Wait for content to load
-            await asyncio.sleep(3)
+            # Wait for content to load (longer for audio player)
+            await asyncio.sleep(5)
             
             # Close login modal if present
             try:
@@ -51,17 +51,21 @@ async def scrape_audio_url(transcript_id: str) -> Optional[str]:
             except Exception:
                 pass
             
+            # Scroll to trigger lazy loading
+            await page.evaluate("window.scrollTo(0, 500)")
+            await asyncio.sleep(2)
+            
             # Extract audio URL from page source
             html_content = await page.content()
             
-            # Pattern for CDN audio URL
-            pattern = r'https://cdn\.fireflies\.ai/[^"\']+/audio\.mp3\?[^"\'\s]+'
+            # Use transcript_id directly in pattern for exact match
+            # URL format: https://cdn.fireflies.ai/{transcript_id}/audio.mp3?...
+            pattern = rf'https://cdn\.fireflies\.ai/{re.escape(transcript_id)}/audio\.mp3\?[^"<>\s]+'
             matches = re.findall(pattern, html_content)
             
             await browser.close()
             
             if matches:
-                # Clean up URL (unescape)
                 audio_url = matches[0].replace('\\u0026', '&').replace('&amp;', '&')
                 logger.info(f"Found audio URL: {audio_url[:100]}...")
                 return audio_url
