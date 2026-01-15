@@ -128,6 +128,102 @@ class AskRetryView(discord.ui.View):
                 logger.warning(f"Failed to cleanup {path}: {e}")
 
 
+class QuotaExhaustedException(Exception):
+    """Raised when all API keys are exhausted (429 rate limit)"""
+    pass
+
+
+class AskQuotaExhaustedView(discord.ui.View):
+    """View shown when all API keys hit quota - offers config option"""
+    
+    def __init__(
+        self, 
+        cog: "AskCog",
+        source,
+        context: AskContext,
+        question: str,
+        question_image: Optional[bytes],
+        message: discord.Message = None,
+    ):
+        super().__init__(timeout=300)  # 5 minutes
+        self.cog = cog
+        self.source = source
+        self.context = context
+        self.question = question
+        self.question_image = question_image
+        self.message = message
+        self.retried = False
+    
+    @discord.ui.button(label="🔄 Thử lại", style=discord.ButtonStyle.primary)
+    async def retry_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Retry - useful after waiting for quota reset"""
+        self.retried = True
+        
+        # Reset rate limit status for all keys
+        from services import gemini_keys
+        pool = gemini_keys.get_pool(interaction.user.id)
+        if pool:
+            pool.reset_rate_limits()
+            logger.info(f"Reset rate limits for user {interaction.user.id}")
+        
+        await interaction.response.defer()
+        await self.cog._process_ask(
+            interaction, 
+            self.question, 
+            self.question_image,
+            self.context,
+        )
+    
+    @discord.ui.button(label="⚙️ Cấu hình API", style=discord.ButtonStyle.secondary)
+    async def config_api_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Open GeminiConfigView to add/manage keys"""
+        from cogs.shared.gemini_config_view import GeminiConfigView
+        
+        # Create callback to return to this view after config
+        async def return_callback(return_interaction: discord.Interaction):
+            embed = discord.Embed(
+                title="⚠️ Tất cả API keys đã hết quota",
+                description="Bạn có thể:\n"
+                    "• **Thử lại** - nếu đã đợi quota reset\n"
+                    "• **Cấu hình API** - thêm key mới\n"
+                    "• **Đóng** - hủy",
+                color=discord.Color.orange()
+            )
+            await return_interaction.response.edit_message(embed=embed, view=self)
+        
+        config_view = GeminiConfigView(interaction.user.id, return_callback=return_callback)
+        embed = config_view._build_status_embed()
+        await interaction.response.edit_message(embed=embed, view=config_view)
+    
+    @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.danger)
+    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        await interaction.delete_original_response()
+        self._cleanup()
+        self.stop()
+    
+    async def on_timeout(self):
+        """Disable buttons on timeout"""
+        if not self.retried:
+            self._cleanup()
+            for item in self.children:
+                item.disabled = True
+            try:
+                if self.message:
+                    await self.message.edit(view=self)
+            except Exception:
+                pass
+    
+    def _cleanup(self):
+        """Remove temp chat images"""
+        for path in self.context.chat_images:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
+
+
 class AskCog(commands.Cog):
     """Lecture Q&A with visual illustrations"""
     
@@ -204,7 +300,7 @@ class AskCog(commands.Cog):
         # Override slide_url if user provided their own PDF
         if user_pdf_url:
             context.slide_url = user_pdf_url
-            logger.info(f"Using user-provided PDF as slide context")
+            logger.info("Using user-provided PDF as slide context")
         
         # Process
         await self._process_ask(source, question, question_image, context)
@@ -302,7 +398,7 @@ class AskCog(commands.Cog):
         include_chat = config.get_ask_include_chat(guild_id) if guild_id else True
         
         if not include_chat:
-            logger.info(f"Skipping chat history (config: ask_include_chat=False)")
+            logger.info("Skipping chat history (config: ask_include_chat=False)")
         else:
             # Fetch recent chat history (excluding preview/summary ranges)
             async for msg in channel.history(limit=chat_limit):
@@ -449,9 +545,13 @@ class AskCog(commands.Cog):
                 return
             
             # Use key pool for rotation
+            from services import gemini_keys
             key_pool = GeminiKeyPool(user_id, api_keys)
+            gemini_keys.register_pool(user_id, key_pool)  # Register for access in retry views
+            
             response_text = None
             last_error = None
+            is_quota_error = False
             
             # Try with key rotation
             for attempt in range(len(api_keys)):
@@ -474,6 +574,7 @@ class AskCog(commands.Cog):
                     # Rate limit or quota exceeded - try next key
                     if "429" in error_str or "quota" in error_str or "rate" in error_str:
                         key_pool.mark_rate_limited(api_key)
+                        is_quota_error = True
                         logger.warning("Key rate limited, trying next...")
                         continue
                     # Invalid key - try next
@@ -485,6 +586,8 @@ class AskCog(commands.Cog):
                     raise
             
             if not response_text:
+                if is_quota_error:
+                    raise QuotaExhaustedException("Tất cả API keys đã hết quota (429 rate limit)")
                 raise last_error or Exception("All API keys exhausted")
             
             # Process LaTeX formulas
@@ -505,6 +608,25 @@ class AskCog(commands.Cog):
             self._cleanup_temp(context.chat_images)
             latex_utils.cleanup_latex_images(latex_images)
             
+        except QuotaExhaustedException:
+            logger.warning(f"All API keys exhausted for user {source.user.id if hasattr(source, 'user') else source.author.id}")
+            
+            # Show quota exhausted view with config option
+            view = AskQuotaExhaustedView(self, source, context, question, question_image)
+            channel = source.channel if hasattr(source, 'channel') else source.channel
+            
+            embed = discord.Embed(
+                title="⚠️ Tất cả API keys đã hết quota",
+                description="Tất cả Gemini API keys của bạn đã đạt giới hạn (429 rate limit).\n\n"
+                    "**Bạn có thể:**\n"
+                    "• 🔄 **Thử lại** - nếu đã đợi quota reset (00:00 Pacific Time)\n"
+                    "• ⚙️ **Cấu hình API** - thêm key mới hoặc xem trạng thái\n"
+                    "• ❌ **Đóng** - hủy",
+                color=discord.Color.orange()
+            )
+            msg = await channel.send(embed=embed, view=view)
+            view.message = msg
+            
         except Exception as e:
             logger.exception("Ask processing failed")
             error_msg = str(e)[:200]
@@ -517,6 +639,7 @@ class AskCog(commands.Cog):
                 view=view,
             )
             view.message = msg  # Track message for timeout
+
     
     async def _download_slide_images(self, url: str) -> list[bytes]:
         """Download PDF and convert to images"""

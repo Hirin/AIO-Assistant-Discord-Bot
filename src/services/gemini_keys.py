@@ -178,3 +178,28 @@ class GeminiKeyPool:
     def increment_count(self, api_key: str):
         """Increment request count for a key."""
         increment_request_count(self.user_id, api_key)
+    
+    def reset_rate_limits(self):
+        """Reset rate limit status for all keys (for manual retry)."""
+        self._rate_limited_keys.clear()
+        logger.info(f"Reset rate limits for user {self.user_id}")
+    
+    def get_next_key(self) -> Optional[str]:
+        """Get current key without rotating (for logging)."""
+        if not self.keys:
+            return None
+        return self.keys[self._current_index % len(self.keys)]
+
+
+# Global pool cache for pool access across modules
+_pool_cache: dict[int, GeminiKeyPool] = {}
+
+
+def get_pool(user_id: int) -> Optional[GeminiKeyPool]:
+    """Get existing pool for a user (if any)."""
+    return _pool_cache.get(user_id)
+
+
+def register_pool(user_id: int, pool: GeminiKeyPool):
+    """Register a pool for a user."""
+    _pool_cache[user_id] = pool

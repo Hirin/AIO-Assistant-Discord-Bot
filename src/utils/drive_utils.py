@@ -90,7 +90,6 @@ async def validate_drive_file(
         - detected_type: Detected file type ("pdf", "video", "image", "html", "unknown")
         - download_url: Direct download URL to use (may be confirmed URL for large files)
     """
-    import re
     
     # Extract file ID if it's a share link
     file_id = extract_drive_file_id(url)
@@ -137,7 +136,7 @@ async def validate_drive_file(
                 
                 # Still HTML = access denied or invalid link
                 if detected_type == "html":
-                    logger.warning(f"Drive file returned HTML - access denied or invalid")
+                    logger.warning("Drive file returned HTML - access denied or invalid")
                     return False, "access_denied", download_url
             
             logger.info(f"Drive file validation: {detected_type} (first bytes: {first_bytes[:10]})")

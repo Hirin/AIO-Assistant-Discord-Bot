@@ -296,6 +296,7 @@ GEMINI_MERGE_PROMPT = """
 3. **TỔNG HỢP = Part1 + PartN + Chat Session** (thêm info, không bớt)
 4. Viết CHI TIẾT để học viên ôn lại mà không cần xem video
 5. Công thức quan trọng thì viết giữa $$ formular $$ thay vì $ formular $ để render rõ ràng
+6. Nếu có **công thức toán** thì hãy giải thích rõ ràng.
 
 **Quy tắc format:**
 - Timestamps: [-SECONDSs-] (VD: [-930s-] cho 15:30)
@@ -388,6 +389,7 @@ PREVIEW_SLIDES_PROMPT = """Đây là tài liệu/slides cho một buổi học. 
 - ƯU TIÊN slides có: Diagram, công thức, bảng so sánh, code demo, hình minh họa
 - **References**: Nếu có links, thêm section "📚 References" mô tả chức năng mỗi link - nhớ luôn để link trong <> để suppress embed
 - **Công thức quan trọng:** thì viết giữa $$ formular $$ thay vì $ formular $ để render rõ ràng
+- Nếu có **công thức toán** thì hãy giải thích rõ ràng.
 
 
 **Output format:**
@@ -510,6 +512,7 @@ ASK_PROMPT = """⚠️ QUY TẮC BẮT BUỘC:
 2. Khi cần hình minh họa từ internet, dùng: [-Google Search: "từ khóa tiếng Anh"-] (Optional)
 3. Trả lời bằng tiếng Việt, rõ ràng, chi tiết
 4. Công thức quan trọng viết giữa $$ formular $$ để render rõ ràng
+5. Nếu có **công thức toán** thì hãy giải thích rõ ràng.
 
 ---
 
