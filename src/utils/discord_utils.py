@@ -3,22 +3,46 @@ Discord Utilities
 """
 
 import asyncio
+import re
 from typing import Union
 
 import discord
+
+
+def suppress_url_embeds(text: str) -> str:
+    """
+    Wrap URLs in angle brackets to suppress Discord's auto-embed previews.
+    
+    https://example.com → <https://example.com>
+    Already wrapped URLs are left unchanged.
+    """
+    # Pattern to match URLs not already wrapped in < >
+    # Negative lookbehind for < and negative lookahead for >
+    url_pattern = r'(?<![<\(])(https?://[^\s\)<>]+)(?![>\)])'
+    
+    def wrap_url(match):
+        url = match.group(1)
+        return f'<{url}>'
+    
+    return re.sub(url_pattern, wrap_url, text)
 
 
 async def send_chunked(
     target: Union[discord.Interaction, discord.TextChannel],
     text: str,
     chunk_size: int = 1900,  # Slightly less than 2000 for safety
+    suppress_embeds: bool = True,  # Wrap URLs to prevent Discord embeds
 ) -> list[discord.Message]:
     """
     Send a long message in chunks to avoid Discord's 2000 char limit.
     Splits by newlines to keep text coherent.
     """
     if not text:
-        return
+        return []
+    
+    # Suppress URL embeds if enabled
+    if suppress_embeds:
+        text = suppress_url_embeds(text)
 
     chunks = []
     current_chunk = ""

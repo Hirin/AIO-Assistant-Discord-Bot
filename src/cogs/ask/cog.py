@@ -141,19 +141,59 @@ class AskCog(commands.Cog):
         # Get channel
         channel = source.channel if hasattr(source, 'channel') else source.channel
         
-        # Download question image if any
+        # Download question image if any, detect PDF attachment
         question_image = None
+        user_pdf_url = None
+        
         if attachments:
             for att in attachments:
                 if att.content_type and att.content_type.startswith("image/"):
                     question_image = await att.read()
-                    break
+                elif att.filename.endswith('.pdf'):
+                    # User attached a PDF - use this as slide context
+                    user_pdf_url = att.url
+                    logger.info(f"User attached PDF: {att.filename}")
+        
+        # Check for Google Drive link in question
+        if not user_pdf_url:
+            from utils import drive_utils
+            
+            # Extract Drive link from question
+            drive_pattern = r'(https://drive\.google\.com/[^\s]+)'
+            match = re.search(drive_pattern, question)
+            if match:
+                drive_link = match.group(1)
+                
+                # Validate with magic bytes check (only downloads 1KB)
+                is_pdf, result = await drive_utils.check_drive_pdf(drive_link)
+                
+                if is_pdf:
+                    user_pdf_url = result  # result is download URL
+                    question = question.replace(drive_link, '').strip()
+                    logger.info(f"Validated Drive PDF: {drive_link[:50]}...")
+                else:
+                    await self._send_error(source, f"❌ {result}")
+                    return
         
         # Get context from channel history
         context = await self._get_context(channel)
         
+        # Override slide_url if user provided their own PDF
+        if user_pdf_url:
+            context.slide_url = user_pdf_url
+            logger.info(f"Using user-provided PDF as slide context")
+        
         # Process
         await self._process_ask(source, question, question_image, context)
+    
+    async def _send_error(self, source, message: str):
+        """Send error message to user"""
+        if hasattr(source, 'reply'):
+            await source.reply(message)
+        elif hasattr(source, 'followup'):
+            await source.followup.send(message, ephemeral=True)
+        else:
+            await source.channel.send(message)
     
     async def _get_context(self, channel, limit: int = 100) -> AskContext:
         """
@@ -231,42 +271,52 @@ class AskCog(commands.Cog):
         # If no stored context, use 200 for better context coverage
         chat_limit = limit if stored_context else 200
         
-        # Fetch recent chat history (excluding preview/summary ranges)
-        async for msg in channel.history(limit=chat_limit):
-            msg_id = msg.id
-            
-            # Skip if in excluded ranges
-            is_excluded = any(start <= msg_id <= end for start, end in exclude_ranges)
-            if is_excluded:
-                continue
-            
-            if msg.author.bot:
-                # Only add if we don't have stored context (avoid duplicates)
-                if not stored_context:
-                    context.bot_text.append(msg.content)
-                    
-                    # Find PDF attachment (first one only)
-                    if not context.pdf_attachment:
-                        for att in msg.attachments:
-                            if att.filename.endswith('.pdf'):
-                                context.pdf_attachment = att.url
-                                break
-            else:
-                # User message - always include recent discussions
-                context.user_messages.append({
-                    "author": msg.author.display_name,
-                    "content": msg.content,
-                })
+        # Check config: should we include chat history?
+        from services import config
+        guild_id = getattr(channel, 'guild', None)
+        if guild_id:
+            guild_id = guild_id.id
+        include_chat = config.get_ask_include_chat(guild_id) if guild_id else True
+        
+        if not include_chat:
+            logger.info(f"Skipping chat history (config: ask_include_chat=False)")
+        else:
+            # Fetch recent chat history (excluding preview/summary ranges)
+            async for msg in channel.history(limit=chat_limit):
+                msg_id = msg.id
                 
-                # Download user images
-                for att in msg.attachments:
-                    if att.content_type and att.content_type.startswith("image/"):
-                        path = f"{TEMP_DIR}/{msg.id}_{att.filename}"
-                        try:
-                            await att.save(path)
-                            context.chat_images.append(path)
-                        except Exception as e:
-                            logger.warning(f"Failed to save image: {e}")
+                # Skip if in excluded ranges
+                is_excluded = any(start <= msg_id <= end for start, end in exclude_ranges)
+                if is_excluded:
+                    continue
+                
+                if msg.author.bot:
+                    # Only add if we don't have stored context (avoid duplicates)
+                    if not stored_context:
+                        context.bot_text.append(msg.content)
+                        
+                        # Find PDF attachment (first one only)
+                        if not context.pdf_attachment:
+                            for att in msg.attachments:
+                                if att.filename.endswith('.pdf'):
+                                    context.pdf_attachment = att.url
+                                    break
+                else:
+                    # User message - always include recent discussions
+                    context.user_messages.append({
+                        "author": msg.author.display_name,
+                        "content": msg.content,
+                    })
+                    
+                    # Download user images
+                    for att in msg.attachments:
+                        if att.content_type and att.content_type.startswith("image/"):
+                            path = f"{TEMP_DIR}/{msg.id}_{att.filename}"
+                            try:
+                                await att.save(path)
+                                context.chat_images.append(path)
+                            except Exception as e:
+                                logger.warning(f"Failed to save image: {e}")
         
         # Fallback: Extract slide URL from bot messages if not stored
         if not context.slide_url:
@@ -526,9 +576,21 @@ class AskCog(commands.Cog):
             keyword = match.group(1)
             if keyword not in search_images:
                 try:
-                    # Pass question as context for better validation
+                    # Extract surrounding text for better context
+                    # Get 300 chars before the marker as context
+                    start_pos = max(0, match.start() - 300)
+                    surrounding_text = text[start_pos:match.start()].strip()
+                    
+                    # Build context: question + surrounding explanation
+                    context_parts = []
+                    if question:
+                        context_parts.append(f"Câu hỏi: {question}")
+                    if surrounding_text:
+                        context_parts.append(f"Nội dung liên quan: {surrounding_text[-200:]}")
+                    full_context = "\n".join(context_parts) if context_parts else None
+                    
                     img_bytes, description = await image_search.search_and_download(
-                        keyword, context=question
+                        keyword, context=full_context
                     )
                     search_images[keyword] = (img_bytes, description)
                 except Exception as e:

@@ -507,7 +507,7 @@ BẢN TÓM TẮT CẦN XỬ LÝ:
 
 ASK_PROMPT = """⚠️ QUY TẮC BẮT BUỘC:
 1. Khi tham chiếu slide, đặt marker [-PAGE:X-] NGAY SAU phần giải thích liên quan 
-2. Khi cần hình minh họa từ internet, dùng: [-Google Search: "từ khóa tiếng Anh"-]
+2. Khi cần hình minh họa từ internet, dùng: [-Google Search: "từ khóa tiếng Anh"-] (Optional)
 3. Trả lời bằng tiếng Việt, rõ ràng, chi tiết
 4. Công thức quan trọng viết giữa $$ formular $$ để render rõ ràng
 
@@ -518,7 +518,7 @@ Bạn là trợ giảng AI giúp học viên hiểu nội dung bài học.
 📚 CONTEXT BÀI HỌC:
 {lecture_context}
 
-💬 THẢO LUẬN TRƯỚC ĐÓ:
+💬 THẢO LUẬN TRƯỚC ĐÓ: (Chỉ để tham khảo, không cần đề cập lại)
 {user_discussions}
 
 📑 SLIDES CÓ SẴN: {num_slides} trang

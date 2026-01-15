@@ -345,8 +345,12 @@ class PreviewProcessor:
                 raise last_error or Exception("Failed after all key retries")
             
             async def convert_pdfs():
-                """Convert all PDFs to images"""
+                """Convert all PDFs to images (skip if already converted)"""
                 for doc in self.documents:
+                    # Skip if already converted
+                    if doc.images:
+                        logger.info(f"Skipping {doc.path}: already converted ({len(doc.images)} pages)")
+                        continue
                     try:
                         doc.images = await slides_service.pdf_to_images_async(doc.path)
                         logger.info(f"Converted {doc.path}: {len(doc.images)} pages")
@@ -531,13 +535,27 @@ class PreviewErrorView(discord.ui.View):
         # Retry
         await self.processor.process()
     
-    @discord.ui.button(label="🔑 Đổi API Key", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="🔑 Đổi Key & Thử lại", style=discord.ButtonStyle.secondary)
     async def change_api_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Open API key config view"""
-        from cogs.shared.gemini_config_view import GeminiConfigView
-        view = GeminiConfigView(self.processor.user_id)
-        embed = view._build_status_embed()
-        await interaction.response.edit_message(content=None, embed=embed, view=view)
+        """Rotate to next API key and retry processing"""
+        await interaction.response.defer(ephemeral=True)
+        
+        # Mark current key as rate limited to force rotation
+        from services import gemini_keys
+        pool = gemini_keys.get_pool(self.processor.user_id)
+        if pool and pool.keys:
+            current_key = pool.get_next_key()
+            if current_key:
+                pool.mark_rate_limited(current_key)
+                logger.info(f"Forced key rotation for user {self.processor.user_id}")
+        
+        # Disable buttons
+        for item in self.children:
+            item.disabled = True
+        await interaction.edit_original_response(view=self)
+        
+        # Retry with different key
+        await self.processor.process()
     
     @discord.ui.button(label="❌ Đóng", style=discord.ButtonStyle.danger)
     async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):

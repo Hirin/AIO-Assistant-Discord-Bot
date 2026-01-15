@@ -115,13 +115,13 @@ async def download_first_valid(
 
 async def search_and_download(
     query: str, 
-    num_images: int = 10,
+    num_images: int = 20,
     validate: bool = True,
     context: str = None,
     api_key: str = None,
 ) -> tuple[Optional[bytes], Optional[str]]:
     """
-    Search Google Images, download multiple images, validate with Gemini 2.5 Flash,
+    Search Google Images, download multiple images, validate with20 Gemini 2.5 Flash,
     and return the best relevant one.
     
     Args:

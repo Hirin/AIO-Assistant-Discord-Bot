@@ -489,3 +489,24 @@ def remove_from_whitelist(guild_id: int, transcript_id: str):
     if transcript_id in current:
         current.remove(transcript_id)
         set_whitelist_transcripts(guild_id, current)
+
+
+# ============================================================================
+# ASK COMMAND CONFIG
+# ============================================================================
+
+def get_ask_include_chat(guild_id: int) -> bool:
+    """
+    Check if !ask should include chat history context.
+    Default: False (skip chat history for faster response)
+    """
+    config = get_guild_config(guild_id)
+    return config.get("ask_include_chat", False)
+
+
+def set_ask_include_chat(guild_id: int, include: bool):
+    """
+    Set whether !ask should include chat history context.
+    """
+    set_guild_config(guild_id, "ask_include_chat", include)
+    logger.info(f"Ask include chat set to {include} for guild {guild_id}")

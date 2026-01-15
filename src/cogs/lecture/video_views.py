@@ -1320,40 +1320,66 @@ class VideoLectureProcessor:
         except Exception as e:
             logger.exception("Error in video lecture processing")
             
-            # Log error to tracking channel
-            from services import discord_logger
-            await discord_logger.log_process(
-                bot=self.interaction.client,
-                guild=self.interaction.guild,
-                user=self.interaction.user,
-                process="Lecture Summary",
-                status=str(e)[:200],
-                success=False,
-                video_url=self.youtube_url,
-                slides_url=self.slides_original_path if self.slides_source == "drive" else None,
-                has_chat=bool(self.extra_context),
-            )
+            # Log error to tracking channel (with try/except to not block error view)
+            try:
+                from services import discord_logger
+                await discord_logger.log_process(
+                    bot=self.interaction.client,
+                    guild=self.interaction.guild,
+                    user=self.interaction.user,
+                    process="Lecture Summary",
+                    status=str(e)[:200],
+                    success=False,
+                    video_url=self.youtube_url,
+                    slides_url=self.slides_original_path if self.slides_source == "drive" else None,
+                    has_chat=bool(self.extra_context),
+                )
+            except Exception as log_err:
+                logger.warning(f"Failed to log error to Discord: {log_err}")
+            
+            logger.info("Attempting to show error view...")
             
             # Show error with retry buttons
             error_view = VideoErrorView(self)
             error_msg = f"❌ Lỗi: {str(e)[:200]}"
             
-            try:
-                if self.status_msg:
+            # Try multiple ways to send error view
+            sent = False
+            
+            # Method 1: Edit status message
+            if self.status_msg:
+                try:
                     await self.status_msg.edit(content=error_msg, view=error_view)
-                else:
+                    logger.info("Error view sent via status_msg.edit")
+                    sent = True
+                except Exception as edit_err:
+                    logger.warning(f"Failed to edit status_msg: {edit_err}")
+            
+            # Method 2: Try interaction followup
+            if not sent:
+                try:
                     await self.interaction.followup.send(
                         error_msg, view=error_view, ephemeral=True
                     )
-            except Exception as send_err:
-                logger.warning(f"Failed to send error via interaction: {send_err}")
-                # Try sending to channel directly as fallback
+                    logger.info("Error view sent via interaction.followup")
+                    sent = True
+                except Exception as followup_err:
+                    logger.warning(f"Failed to send via followup: {followup_err}")
+            
+            # Method 3: Send to channel directly (most reliable)
+            if not sent:
                 try:
                     await self.interaction.channel.send(
-                        f"{error_msg}\n\n_(Không thể hiển thị nút retry do session timeout)_"
+                        f"{error_msg}\n\n🔄 Bấm button để thử lại:",
+                        view=error_view
                     )
+                    logger.info("Error view sent via channel.send")
+                    sent = True
                 except Exception as channel_err:
                     logger.error(f"Failed to send error to channel: {channel_err}")
+            
+            if not sent:
+                logger.error("CRITICAL: Could not send error view through any method!")
         
         finally:
             # Always release queue slot
