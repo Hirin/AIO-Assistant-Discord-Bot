@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 
 import discord
 
-from services import fireflies, fireflies_api, llm, scheduler, transcript_storage, latex_utils, slides as slides_service
+from services import fireflies, fireflies_api, llm, scheduler, transcript_storage, slides as slides_service
+from utils import latex_utils
 from utils.discord_utils import send_chunked
 from cogs.shared.feedback_view import FeedbackView
 
@@ -363,8 +364,11 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
                         )
                         if new_summary and not new_summary.startswith("⚠️ LLM"):
                             new_summary, latex_imgs = latex_utils.process_latex_formulas(new_summary)
-                            if latex_imgs:
-                                await _send_with_latex_images(retry_interaction.channel, kwargs["header"] + new_summary, latex_imgs)
+                            from utils import table_utils
+                            new_summary, table_imgs = table_utils.process_markdown_tables(new_summary)
+                            all_imgs = latex_imgs + table_imgs
+                            if all_imgs:
+                                await _send_with_latex_images(retry_interaction.channel, kwargs["header"] + new_summary, all_imgs)
                             else:
                                 await send_chunked(retry_interaction.channel, kwargs["header"] + new_summary)
                         else:
@@ -404,9 +408,16 @@ class MeetingIdModal(discord.ui.Modal, title="Meeting Summary"):
                 # Process LaTeX formulas: $$...$$ -> image, $...$ -> Unicode
                 summary, latex_images = latex_utils.process_latex_formulas(summary)
                 
-                if latex_images:
+                # Process markdown tables
+                from utils import table_utils
+                summary, table_images = table_utils.process_markdown_tables(summary)
+                
+                # Combine all images
+                all_images = latex_images + table_images
+                
+                if all_images:
                     # Send with embedded images for block formulas
-                    msg_ids = await _send_with_latex_images(interaction.channel, header + summary, latex_images)
+                    msg_ids = await _send_with_latex_images(interaction.channel, header + summary, all_images)
                 else:
                     msgs = await send_chunked(interaction.channel, header + summary)
                     msg_ids = [m.id for m in (msgs or [])]

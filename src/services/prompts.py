@@ -516,7 +516,7 @@ ASK_PROMPT = """⚠️ QUY TẮC BẮT BUỘC:
 
 ---
 
-Bạn là trợ giảng AI giúp học viên hiểu nội dung bài học.
+Bạn là trợ giảng giúp học viên hiểu nội dung bài học.
 
 📚 CONTEXT BÀI HỌC:
 {lecture_context}

@@ -591,8 +591,14 @@ class AskCog(commands.Cog):
                 raise last_error or Exception("All API keys exhausted")
             
             # Process LaTeX formulas
-            from services import latex_utils
+            from utils import latex_utils, table_utils
             response_text, latex_images = latex_utils.process_latex_formulas(response_text)
+            
+            # Process markdown tables
+            response_text, table_images = table_utils.process_markdown_tables(response_text)
+            
+            # Combine all images (latex + tables)
+            all_formula_images = latex_images + table_images
             
             # Send response with interleaved images
             await self._send_interleaved_response(
@@ -601,12 +607,13 @@ class AskCog(commands.Cog):
                 slide_images=slide_images,
                 chat_images=context.chat_images,
                 question=question, 
-                latex_images=latex_images,
+                latex_images=all_formula_images,
             )
             
             # Cleanup temp files
             self._cleanup_temp(context.chat_images)
             latex_utils.cleanup_latex_images(latex_images)
+            table_utils.cleanup_table_images(table_images)
             
         except QuotaExhaustedException:
             logger.warning(f"All API keys exhausted for user {source.user.id if hasattr(source, 'user') else source.author.id}")

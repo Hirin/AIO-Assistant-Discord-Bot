@@ -8,10 +8,11 @@ import logging
 import os
 from typing import Optional
 
-from services import gemini, video_download, video, lecture_cache, prompts, latex_utils
+from services import gemini, video_download, video, lecture_cache, prompts
+from utils import latex_utils
 from services.video import format_timestamp, cleanup_files
 from services.slides import SlidesError
-from services.lecture_utils import (
+from utils.lecture_utils import (
     preprocess_chat_session, 
     extract_links_from_chat, 
     format_chat_links_for_prompt
@@ -1168,6 +1169,13 @@ class VideoLectureProcessor:
             # - $...$ (inline): Convert to Unicode
             final_summary, latex_images = latex_utils.process_latex_formulas(final_summary)
             
+            # Process markdown tables
+            from utils import table_utils
+            final_summary, table_images = table_utils.process_markdown_tables(final_summary)
+            
+            # Combine all images
+            all_images = latex_images + table_images
+            
             header = f"🎓 **{self.title}**\n🔗 <{self.youtube_url}>\n\n"
             
             # Helper to send LaTeX images embedded in text
@@ -1225,12 +1233,12 @@ class VideoLectureProcessor:
                 
                 if has_pages:
                     msgs = await send_chunked_with_pages(
-                        self.interaction.channel, parsed_parts, self.slide_images, latex_images
+                        self.interaction.channel, parsed_parts, self.slide_images, all_images
                     )
                     messages_to_track.extend(msgs)
                 else:
                     # No page markers, send text only (with LaTeX images if any)
-                    msgs = await send_with_latex_images(self.interaction.channel, header + final_summary, latex_images)
+                    msgs = await send_with_latex_images(self.interaction.channel, header + final_summary, all_images)
                     messages_to_track.extend(msgs)
                 
                 # Cleanup slide images
@@ -1252,7 +1260,7 @@ class VideoLectureProcessor:
                     cleanup_files(frame_paths)
                 else:
                     # Send with LaTeX images if any
-                    msgs = await send_with_latex_images(self.interaction.channel, header + final_summary, latex_images)
+                    msgs = await send_with_latex_images(self.interaction.channel, header + final_summary, all_images)
                     messages_to_track.extend(msgs)
             
             # STAGE 6: Send Feedback View

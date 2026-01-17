@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from services import gemini, video_download, prompts
 from services import slides as slides_service
-from services import latex_utils
+from utils import latex_utils
 from cogs.shared.feedback_view import FeedbackView
 
 logger = logging.getLogger(__name__)
@@ -374,6 +374,13 @@ class PreviewProcessor:
             # Process LaTeX formulas before parsing
             summary, latex_images = latex_utils.process_latex_formulas(summary)
             
+            # Process markdown tables
+            from utils import table_utils
+            summary, table_images = table_utils.process_markdown_tables(summary)
+            
+            # Combine all images
+            all_images = latex_images + table_images
+            
             # Parse multi-doc page markers
             parsed_parts = parse_multi_doc_pages(summary)
             
@@ -387,7 +394,7 @@ class PreviewProcessor:
                 self.interaction.channel,
                 parsed_parts,
                 doc_images,
-                latex_images=latex_images,
+                latex_images=all_images,
             )
             
             # ==================================
